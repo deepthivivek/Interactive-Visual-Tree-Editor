@@ -10,7 +10,9 @@ import {
   Maximize2,
   ZoomIn,
   ZoomOut,
-  Layers,
+  Grid,
+  Map,
+  ArrowDown,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { Badge } from '../ui/badge';
@@ -23,11 +25,11 @@ function getNodeTypeIcon(type: NodeType) {
     case 'rule':
       return <ShieldAlert className="w-4 h-4 text-blue-600" />;
     case 'condition':
-      return <HelpCircle className="w-4 h-4 text-amber-600" />;
+      return <HelpCircle className="w-4 h-4 text-emerald-600" />;
     case 'action':
-      return <Zap className="w-4 h-4 text-emerald-600" />;
+      return <Zap className="w-4 h-4 text-orange-600" />;
     default:
-      return <Layers className="w-4 h-4 text-slate-500" />;
+      return <FolderTree className="w-4 h-4 text-slate-500" />;
   }
 }
 
@@ -43,70 +45,47 @@ export const TreeCanvasArea: React.FC = () => {
   };
 
   return (
-    <main className="flex-1 bg-slate-50/60 relative flex flex-col min-w-0 overflow-hidden">
-      {/* Canvas Top Bar / Workspace Status */}
-      <div className="h-10 bg-white/80 backdrop-blur-xs border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between text-xs text-slate-500 shrink-0 z-10">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-700">Canvas Workspace</span>
-          <span className="text-slate-300">•</span>
-          <span className="text-[11px] text-slate-500">
-            Hierarchical Compliance Tree Preview
+    <main className="flex-1 bg-slate-50/70 relative flex flex-col min-w-0 overflow-hidden">
+      {/* Workspace Header */}
+      <div className="h-11 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between text-xs shrink-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <span className="font-semibold text-slate-800">Tree Editor</span>
+          <span className="text-slate-300">/</span>
+          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+            Sample Compliance Template
           </span>
         </div>
 
-        {/* Viewport & Controls Placeholder */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-100/70 border border-slate-200 px-2 py-0.5 rounded text-[11px] text-slate-600">
-            <span>100%</span>
-            <span className="text-slate-300">|</span>
-            <button disabled className="opacity-40 cursor-not-allowed">
-              <ZoomOut className="w-3 h-3" />
-            </button>
-            <button disabled className="opacity-40 cursor-not-allowed">
-              <ZoomIn className="w-3 h-3" />
-            </button>
-            <button disabled className="opacity-40 cursor-not-allowed">
-              <Maximize2 className="w-3 h-3" />
-            </button>
-          </div>
-          <span className="hidden xl:inline text-[11px] text-slate-400">
-            Interactive canvas on Day 2
-          </span>
+        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <MousePointerClick className="w-3.5 h-3.5 text-blue-500" />
+          <span className="hidden sm:inline">Click node to inspect</span>
         </div>
       </div>
 
-      {/* Main Canvas Scrollable Surface with subtle dot grid */}
+      {/* Main Canvas Scrollable Area with subtle dot pattern */}
       <div
-        className="flex-1 overflow-auto p-6 lg:p-10 flex flex-col items-center justify-start min-h-0"
+        className="flex-1 overflow-auto p-6 sm:p-10 flex flex-col items-center justify-start min-h-0"
         style={{
           backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
           backgroundSize: '24px 24px',
         }}
       >
-        <div className="w-full max-w-5xl my-auto space-y-6">
-          {/* Interaction Instruction Banner */}
-          <div className="flex items-center justify-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/90 border border-slate-200 rounded-full shadow-2xs text-xs text-slate-500">
-              <MousePointerClick className="w-3.5 h-3.5 text-blue-500" />
-              <span>Click any node card to inspect properties in the right sidebar</span>
-            </div>
-          </div>
-
-          {/* TREE STRUCTURE */}
+        <div className="w-full max-w-5xl my-auto space-y-6 pb-16">
+          {/* TREE GRAPH HIERARCHICAL PREVIEW */}
           {rootNode && (
             <div className="flex flex-col items-center">
-              {/* ROOT NODE CARD */}
+              {/* LEVEL 1: ROOT NODE */}
               <div
                 onClick={() => setSelectedNodeId(rootNode.id)}
-                className={`w-72 sm:w-80 bg-white border rounded-xl p-4 shadow-xs transition-all cursor-pointer select-none ${
+                className={`w-72 sm:w-80 bg-white border rounded-lg p-3.5 shadow-2xs transition-all cursor-pointer select-none ${
                   selectedNodeId === rootNode.id
-                    ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md'
-                    : 'border-slate-200 hover:border-purple-300 hover:shadow-sm'
+                    ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'border-slate-200 hover:border-purple-300 hover:shadow-xs'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-purple-50 border border-purple-100">
+                    <div className="p-1.5 rounded-md bg-purple-50 border border-purple-100">
                       {getNodeTypeIcon('root')}
                     </div>
                     <div>
@@ -120,7 +99,7 @@ export const TreeCanvasArea: React.FC = () => {
                   </div>
                   <Badge type="root">ROOT</Badge>
                 </div>
-                <p className="text-xs text-slate-500 mt-2.5 line-clamp-2">
+                <p className="text-xs text-slate-500 mt-2 line-clamp-2">
                   {rootNode.data.description}
                 </p>
                 <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
@@ -129,18 +108,21 @@ export const TreeCanvasArea: React.FC = () => {
                 </div>
               </div>
 
-              {/* VERTICAL CONNECTOR FROM ROOT */}
-              <div className="w-px h-6 bg-slate-300" />
+              {/* DIRECTIONAL CONNECTOR DOWN FROM ROOT */}
+              <div className="flex flex-col items-center">
+                <div className="w-px h-5 bg-slate-300" />
+                <ArrowDown className="w-3.5 h-3.5 text-slate-400 -mt-1" />
+              </div>
 
               {/* HORIZONTAL CONNECTOR SPREAD */}
               <div className="relative w-full max-w-4xl flex items-center justify-between px-16">
-                <div className="absolute top-0 left-24 right-24 h-px bg-slate-300" />
-                <div className="w-px h-6 bg-slate-300 mx-auto" />
-                <div className="w-px h-6 bg-slate-300 mx-auto" />
-                <div className="w-px h-6 bg-slate-300 mx-auto" />
+                <div className="absolute top-0 left-20 right-20 h-px bg-slate-300" />
+                <div className="w-px h-5 bg-slate-300 mx-auto" />
+                <div className="w-px h-5 bg-slate-300 mx-auto" />
+                <div className="w-px h-5 bg-slate-300 mx-auto" />
               </div>
 
-              {/* RULE BRANCHES (FINRA-2210, SEC-17a-4, DISC-09) */}
+              {/* LEVEL 2: RULE BRANCHES (FINRA-2210, SEC-17a-4, DISC-09) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
                 {ruleNodes.map((rule) => {
                   const children = getChildNodes(rule.id);
@@ -152,10 +134,10 @@ export const TreeCanvasArea: React.FC = () => {
                       {/* RULE CARD */}
                       <div
                         onClick={() => setSelectedNodeId(rule.id)}
-                        className={`w-full bg-white border rounded-lg p-3.5 shadow-xs transition-all cursor-pointer select-none ${
+                        className={`w-full bg-white border rounded-lg p-3 shadow-2xs transition-all cursor-pointer select-none ${
                           selectedNodeId === rule.id
-                            ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md'
-                            : 'border-slate-200 hover:border-blue-300 hover:shadow-sm'
+                            ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-xs'
+                            : 'border-slate-200 hover:border-blue-300 hover:shadow-xs'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -169,10 +151,10 @@ export const TreeCanvasArea: React.FC = () => {
                           </div>
                           <Badge type="rule">RULE</Badge>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-2 line-clamp-2">
+                        <p className="text-[11px] text-slate-500 mt-1.5 line-clamp-2">
                           {rule.data.description}
                         </p>
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                        <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px]">
                           <span className="font-mono text-blue-700">
                             {rule.data.ruleId}
                           </span>
@@ -184,24 +166,27 @@ export const TreeCanvasArea: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* VERTICAL CONNECTOR DOWN FROM RULE */}
-                      <div className="w-px h-5 bg-slate-300" />
+                      {/* DIRECTIONAL CONNECTOR DOWN FROM RULE */}
+                      <div className="flex flex-col items-center">
+                        <div className="w-px h-4 bg-slate-300" />
+                        <ArrowDown className="w-3 h-3 text-slate-400 -mt-1" />
+                      </div>
 
-                      {/* BRANCH LEAVES (CONDITION & ACTION) */}
-                      <div className="w-full space-y-2.5">
+                      {/* LEVEL 3 & 4: CONDITION AND ACTION */}
+                      <div className="w-full space-y-2">
                         {/* Condition Card */}
                         {conditionNode && (
                           <div
                             onClick={() => setSelectedNodeId(conditionNode.id)}
-                            className={`w-full bg-white border rounded-lg p-3 shadow-2xs transition-all cursor-pointer select-none ${
+                            className={`w-full bg-white border rounded-lg p-2.5 shadow-2xs transition-all cursor-pointer select-none ${
                               selectedNodeId === conditionNode.id
-                                ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md'
-                                : 'border-slate-200 hover:border-amber-300'
+                                ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-xs'
+                                : 'border-slate-200 hover:border-emerald-300'
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
-                                <div className="p-1 rounded bg-amber-50 border border-amber-100">
+                                <div className="p-1 rounded bg-emerald-50 border border-emerald-100">
                                   {getNodeTypeIcon('condition')}
                                 </div>
                                 <span className="text-xs font-medium text-slate-800 truncate max-w-[130px]">
@@ -212,28 +197,34 @@ export const TreeCanvasArea: React.FC = () => {
                                 COND
                               </Badge>
                             </div>
-                            <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
-                              <span className="font-mono text-amber-700">
+                            <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                              <span className="font-mono text-emerald-700">
                                 {conditionNode.data.ruleId}
                               </span>
-                              <span>Gate criteria</span>
+                              <span>Criteria gate</span>
                             </div>
                           </div>
                         )}
+
+                        {/* DIRECTIONAL CONNECTOR FROM CONDITION TO ACTION */}
+                        <div className="flex flex-col items-center">
+                          <div className="w-px h-3 bg-slate-300" />
+                          <ArrowDown className="w-3 h-3 text-slate-400 -mt-1" />
+                        </div>
 
                         {/* Action Card */}
                         {actionNode && (
                           <div
                             onClick={() => setSelectedNodeId(actionNode.id)}
-                            className={`w-full bg-white border rounded-lg p-3 shadow-2xs transition-all cursor-pointer select-none ${
+                            className={`w-full bg-white border rounded-lg p-2.5 shadow-2xs transition-all cursor-pointer select-none ${
                               selectedNodeId === actionNode.id
-                                ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md'
-                                : 'border-slate-200 hover:border-emerald-300'
+                                ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-xs'
+                                : 'border-slate-200 hover:border-orange-300'
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
-                                <div className="p-1 rounded bg-emerald-50 border border-emerald-100">
+                                <div className="p-1 rounded bg-orange-50 border border-orange-100">
                                   {getNodeTypeIcon('action')}
                                 </div>
                                 <span className="text-xs font-medium text-slate-800 truncate max-w-[130px]">
@@ -244,8 +235,8 @@ export const TreeCanvasArea: React.FC = () => {
                                 ACT
                               </Badge>
                             </div>
-                            <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
-                              <span className="font-mono text-emerald-700">
+                            <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                              <span className="font-mono text-orange-700">
                                 {actionNode.data.ruleId}
                               </span>
                               <span>Enforcement</span>
@@ -260,13 +251,62 @@ export const TreeCanvasArea: React.FC = () => {
             </div>
           )}
 
-          {/* COMPLIANCE DISCLAIMER FOOTER */}
-          <div className="text-center pt-6">
+          {/* MOCK COMPLIANCE DISCLAIMER */}
+          <div className="text-center pt-4">
             <p className="text-[11px] text-slate-400 max-w-xl mx-auto leading-relaxed">
-              <span className="font-medium text-slate-600">Sample Compliance Template:</span> FINRA-2210, SEC-17a-4, and DISC-09 branches are mock demonstration fixtures created for architecture validation and are not official regulatory workflows.
+              This is mock sample data and does not represent official regulatory workflows.
             </p>
           </div>
         </div>
+      </div>
+
+      {/* FLOATING CANVAS CONTROLS (Day 1 Visual Placeholders) */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white/95 backdrop-blur-xs border border-slate-200 rounded-lg shadow-sm px-2 py-1.5 flex items-center gap-1.5 text-xs select-none">
+        <button
+          disabled
+          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 cursor-not-allowed opacity-60"
+          title="Zoom out (Interactive canvas enabled on Day 2)"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </button>
+
+        <span className="px-1.5 text-[11px] font-mono text-slate-600">
+          100%
+        </span>
+
+        <button
+          disabled
+          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 cursor-not-allowed opacity-60"
+          title="Zoom in (Interactive canvas enabled on Day 2)"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </button>
+
+        <div className="w-px h-3.5 bg-slate-200 mx-0.5" />
+
+        <button
+          disabled
+          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 cursor-not-allowed opacity-60"
+          title="Fit view (Interactive canvas enabled on Day 2)"
+        >
+          <Maximize2 className="w-4 h-4" />
+        </button>
+
+        <button
+          disabled
+          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 cursor-not-allowed opacity-60"
+          title="Toggle grid (Canvas engine enabled on Day 2)"
+        >
+          <Grid className="w-4 h-4" />
+        </button>
+
+        <button
+          disabled
+          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 cursor-not-allowed opacity-60"
+          title="MiniMap (Enabled in later milestone)"
+        >
+          <Map className="w-4 h-4" />
+        </button>
       </div>
     </main>
   );

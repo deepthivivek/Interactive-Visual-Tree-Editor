@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 ## [Day 1] - 2026-10-04: Project Foundation, Core Model & Store Setup
 
 ### Added
+- **Permanent Enterprise Product Architecture (Day 1 Visual Refinement)**:
+  - **Top Application Header (`TreeHeader.tsx`)**: Permanent header with logo, title, subtitle, mock template chip, working reset sample data, and reserved action placeholders (Search, Validate, JSON, Theme, User).
+  - **Left Application Sidebar (`NodePaletteSidebar.tsx`)**:
+    - Primary Navigation: `Tree Editor` (active), `Templates` (placeholder), `Settings` (placeholder).
+    - Node Palette: visual-only specifications for `Root` (purple), `Rule` (blue), `Condition` (restrained green), and `Action` (restrained orange).
+  - **Central Tree Editor Workspace (`TreeCanvasArea.tsx`)**:
+    - Dominant workspace area with light dot grid pattern.
+    - Workspace header: "Tree Editor" / "Sample Compliance Template".
+    - Directional hierarchical preview of the Sample Compliance Template (Root -> 3 Rules -> Condition & Action).
+    - Floating canvas controls placeholder (Zoom in/out, 100%, Fit view, Grid, MiniMap).
+    - Mock sample disclaimer.
+  - **Right Properties / Inspector Sidebar (`PropertiesInspectorSidebar.tsx`)**:
+    - "Node Inspector" panel with empty state ("No node selected. Select a node from the tree to view its properties.").
+    - Quick Stats card: Nodes (10), Edges (9), Root (1 ✓).
+    - Read-only inspection of selected node attributes.
 - **Core Typed Data Model (`src/types/tree.ts`)**:
   - `NodeType`: `'root' | 'rule' | 'condition' | 'action'`
   - `NodeSeverity`: `'info' | 'low' | 'medium' | 'high' | 'critical'`
