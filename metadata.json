@@ -1,0 +1,6 @@
+{
+  "name": "Interactive Visual Tree Editor",
+  "description": "Visual tree editor for hierarchical compliance policy templates and rules.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
