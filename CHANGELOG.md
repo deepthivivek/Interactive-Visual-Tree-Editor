@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 2] - 2026-10-05: Basic React Flow Canvas
+
+### Added
+- **Interactive React Flow Canvas (`src/components/tree/TreeCanvas.tsx`)**:
+  - Reusable, isolated canvas component powered by `@xyflow/react`.
+  - Integrates existing Zustand store nodes (`nodes`) and edges (`edges`) into the React Flow viewport.
+  - Interactive canvas navigation:
+    - Mouse-wheel zoom, pan, and dragging existing nodes.
+    - Floating bottom toolbar with accessible controls: Zoom Out, Zoom Indicator (e.g. `100%`), Zoom In, Fit View, Reset View, and Grid Toggle.
+    - Non-destructive **Reset View**: restores default viewport and zoom without modifying graph document nodes or edges.
+    - Toggleable dot grid background (`Background` with `BackgroundVariant.Dots`).
+    - Informational Empty State: displays `"Drag a node from the left to get started."` when zero nodes are present.
+  - Integration with Day 1 shell:
+    - Hosted directly in `TreeCanvasArea.tsx` inside the dominant central workspace.
+    - Node selection syncs bidirectionally with `selectedNodeId` in the Zustand store and updates the right Properties Inspector.
+    - Strictly preserves Day 1 application shell, navigation, header, and inspector.
+  - Minimal Day 2 node representation:
+    - Clean card styling with label and rule ID.
+    - Invisible non-interactive handles allowing React Flow edge path calculations without exposing Day 5 connection handles.
+    - Strictly deferred custom node design to Day 3.
+
+### Tested
+- Expanded unit tests in `src/tests/treeStore.test.ts` to 10 tests, adding coverage for:
+  - Node position updates during canvas interaction without affecting edge structure.
+  - Clearing nodes to verify empty state behavior and resetting cleanly.
+
 ## [Day 1] - 2026-10-04: Project Foundation, Core Model & Store Setup
 
 ### Added
