@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 3] - 2026-10-06: Custom Node Components & Shared Node Type Configuration
+
+### Added
+- **Shared Node Type Configuration (`src/lib/nodeTypeConfig.ts`)**:
+  - Framework-independent and serializable single source of truth for node presentation metadata.
+  - Pure, deterministic resolver `getNodeTypeConfig(type)` with safe neutral fallback for unexpected runtime types.
+  - Complete concrete color palettes (primary, background, border, text, accent) for future MiniMap and SVG export compatibility.
+  - Full static Tailwind class mappings avoiding dynamic string interpolation.
+  - Pure status presentation resolver `getNodeStatusConfig(status)` supporting `active`, `in_review`, `draft`, and `deprecated`.
+  - Serializable icon identifiers (`'root' | 'rule' | 'condition' | 'action' | 'unknown'`) decoupled from React component instances.
+- **Custom Node Component (`src/components/tree/CustomNode.tsx`)**:
+  - Memoized React Flow custom node component (`CustomNode`) driving all 4 node types (Root, Rule, Condition, Action) dynamically.
+  - Distinct iconography via Lucide React (`Layers`, `Shield`, `GitBranch`, `Zap`, `CircleHelp`).
+  - Standardized compact width (~215px) for consistent, predictable hierarchical alignment.
+  - Professional card layout: styled top header with icon and uppercase type badge, status indicator dot, readable title with line clamping, and monospace rule identifier.
+  - Accessible interaction states: Default, Hover, Selected (border + focus ring + elevation), and visible Keyboard Focus (`focus-visible:ring-2`).
+  - Structural Top (target) and Bottom (source) React Flow handles enabling smoothstep edges for the sample compliance hierarchy while strictly enforcing `isConnectable={false}` to disable manual connection creation until Day 5.
+- **Canvas Integration**:
+  - Registered `CustomNode` in `src/components/tree/TreeCanvas.tsx` for `root`, `rule`, `condition`, and `action`.
+  - Preserved bidirectional node selection, viewport zoom/pan, fit-view, and background dot grid.
+
+### Tested
+- Created `src/tests/nodeTypeConfig.test.ts` (12 unit tests):
+  - Verified accurate resolution for Root, Rule, Condition, Action.
+  - Verified defensive neutral fallback for unknown, empty, null, and undefined types without throwing.
+  - Verified color completeness and Tailwind static class integrity for future MiniMap reuse.
+  - Verified strict JSON serializability (no React components or functions stored).
+  - Verified status presentation resolution and fallback behavior.
+- Total test suite now passes with 24 unit tests across 2 test suites.
+
 ## [Day 2] - 2026-10-05: Basic React Flow Canvas
 
 ### Added

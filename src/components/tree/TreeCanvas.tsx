@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   useReactFlow,
   ReactFlowProvider,
+  useViewport,
   applyNodeChanges,
   type NodeChange,
   type OnNodesChange,
   type NodeProps,
   Handle,
   Position,
-  useOnViewportChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
@@ -27,57 +27,13 @@ import {
 import { useTreeStore } from '../../store/treeStore';
 import type { TreeNode } from '../../types/tree';
 
-/**
- * Minimal React Flow node representation for Day 2.
- * Strictly adheres to Day 2 boundary:
- * - Simple card styling with clean typography for label and rule ID
- * - Non-interactive invisible handles for edge path calculations (no custom connection handles)
- * - Custom node designs, status badges, and severity styling belong to Day 3
- */
-const MinimalDay2Node: React.FC<NodeProps> = ({ data, selected }) => {
-  const label = typeof data.label === 'string' ? data.label : 'Node';
-  const ruleId = typeof data.ruleId === 'string' ? data.ruleId : undefined;
-
-  return (
-    <div
-      className={`px-3.5 py-2.5 bg-white rounded-md border text-xs shadow-2xs transition-all min-w-[150px] max-w-[220px] select-none ${
-        selected
-          ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-xs'
-          : 'border-slate-300 hover:border-slate-400'
-      }`}
-    >
-      {/* Invisible non-interactive handles for edge path calculations */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        isConnectable={false}
-        className="opacity-0 pointer-events-none"
-      />
-
-      <div className="font-semibold text-slate-900 truncate leading-snug">
-        {label}
-      </div>
-      {ruleId && (
-        <div className="font-mono text-[10px] text-slate-500 mt-1 truncate">
-          {ruleId}
-        </div>
-      )}
-
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        isConnectable={false}
-        className="opacity-0 pointer-events-none"
-      />
-    </div>
-  );
-};
+import { CustomNode } from './CustomNode';
 
 const nodeTypes = {
-  root: MinimalDay2Node,
-  rule: MinimalDay2Node,
-  condition: MinimalDay2Node,
-  action: MinimalDay2Node,
+  root: CustomNode,
+  rule: CustomNode,
+  condition: CustomNode,
+  action: CustomNode,
 };
 
 /**
@@ -85,27 +41,18 @@ const nodeTypes = {
  */
 const TreeCanvasInner: React.FC = () => {
   const { nodes, edges, selectedNodeId, setSelectedNodeId, setNodes } = useTreeStore();
-  const { zoomIn, zoomOut, fitView, getZoom } = useReactFlow();
+  const { zoomIn, zoomOut, fitView, setViewport } = useReactFlow();
+
+  // Reactive viewport coordinates and zoom from React Flow
+  const { x, y, zoom } = useViewport();
+
+  // Validate that viewport values are finite numbers (prevents SVG NaN attribute errors)
+  const isViewportValid =
+    Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(zoom) && zoom > 0;
+  const currentZoom = isViewportValid ? zoom : 1;
 
   // Transient UI states for canvas (not persisted, not in undo history)
   const [gridVisible, setGridVisible] = useState(true);
-  const [currentZoom, setCurrentZoom] = useState(1);
-
-  // Track zoom level for floating indicator
-  useOnViewportChange({
-    onChange: useCallback((viewport: { zoom: number }) => {
-      setCurrentZoom(viewport.zoom);
-    }, []),
-  });
-
-  // Initial fit view on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fitView({ padding: 0.25, duration: 400 });
-      setCurrentZoom(getZoom());
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [fitView, getZoom]);
 
   // Sync selectedNodeId with React Flow selected state
   const flowNodes = useMemo(() => {
@@ -127,11 +74,21 @@ const TreeCanvasInner: React.FC = () => {
     [nodes, setNodes]
   );
 
+  // Fit View handler with safety check
+  const handleFitView = useCallback(() => {
+    if (nodes.length > 0) {
+      fitView({ padding: 0.25, duration: 300 });
+    }
+  }, [nodes.length, fitView]);
+
   // Reset View handler - Restores initial viewport ONLY without mutating document state
   const handleResetView = useCallback(() => {
-    // Restores default canvas zoom and position
-    fitView({ padding: 0.25, duration: 300 });
-  }, [fitView]);
+    if (nodes.length > 0) {
+      fitView({ padding: 0.25, duration: 300 });
+    } else {
+      setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 });
+    }
+  }, [nodes.length, fitView, setViewport]);
 
   return (
     <div className="w-full h-full relative overflow-hidden bg-slate-50/60 select-none">
@@ -143,7 +100,9 @@ const TreeCanvasInner: React.FC = () => {
         onNodesChange={onNodesChange}
         onNodeClick={(_, node) => setSelectedNodeId(node.id)}
         onPaneClick={() => setSelectedNodeId(null)}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         fitView
+        fitViewOptions={{ padding: 0.25, minZoom: 0.2, maxZoom: 1.5 }}
         minZoom={0.2}
         maxZoom={2}
         panOnDrag={true}
@@ -158,8 +117,8 @@ const TreeCanvasInner: React.FC = () => {
         }}
         proOptions={{ hideAttribution: true }}
       >
-        {/* Toggleable Canvas Grid Background */}
-        {gridVisible && (
+        {/* Toggleable Canvas Grid Background (Rendered only when viewport numbers are valid and finite) */}
+        {gridVisible && isViewportValid && (
           <Background
             color="#cbd5e1"
             gap={20}
@@ -228,7 +187,7 @@ const TreeCanvasInner: React.FC = () => {
         {/* Fit View */}
         <button
           type="button"
-          onClick={() => fitView({ padding: 0.25, duration: 300 })}
+          onClick={handleFitView}
           className="p-1.5 text-slate-600 hover:text-slate-900 rounded hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 transition"
           aria-label="Fit view"
           title="Fit view (centers all nodes within viewport)"

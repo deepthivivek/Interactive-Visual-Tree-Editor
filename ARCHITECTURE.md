@@ -133,6 +133,28 @@ Header
    - Dedicated properties panel.
    - Day 1: Empty state ("No node selected. Select a node to view its properties") or read-only attribute inspection (live editing scheduled for Day 7).
 
+---
+
+## 5. Node Presentation Architecture (Implemented in Day 3)
+
+### Shared, Framework-Independent Configuration (`src/lib/nodeTypeConfig.ts`)
+To prevent hardcoded presentation logic and ensure cross-component reuse, node type presentation metadata is governed by a framework-independent module:
+- **Serializability**: The configuration strictly contains primitive strings and hex color codes. React components and Lucide icon instances are NEVER stored in the configuration.
+- **Icon Identifier Mapping**: Stable strings (`'root' | 'rule' | 'condition' | 'action' | 'unknown'`) are resolved in the UI layer (`CustomNode.tsx`), leaving the configuration portable for non-React contexts (e.g. export pipelines, Canvas rendering, MiniMap).
+- **Static Tailwind Utilities**: All Tailwind classes are full, static strings to ensure guaranteed detection by the PostCSS/Tailwind compiler without fragile dynamic string templates.
+- **Defensive Fallback**: Pure resolver `getNodeTypeConfig(type)` provides deterministic fallback to `UNKNOWN_NODE_TYPE_CONFIG` for null, undefined, or unrecognized strings without throwing runtime errors.
+- **Future Reusability**: The same configuration module will drive the Node Palette (Day 4), MiniMap (Day 9+), and Properties Inspector (Day 7).
+
+### Custom Node Component (`src/components/tree/CustomNode.tsx`)
+- **Single Component Architecture**: Instead of 4 separate components, a single data-driven `CustomNode` component handles all node types dynamically based on `node.type` and `nodeTypeConfig`.
+- **Compact Layout (~215px)**: Predictable dimensions preventing layout overlap and excessive canvas growth.
+- **Accessibility & Discovery**: Text truncation with `title` attributes, visible focus rings (`focus-visible:ring-2`), and `aria-label` screen-reader announcements.
+- **Handle Constraints (Day 3 Boundary)**: Structural target (top) and source (bottom) handles are provided to render existing sample tree edges while enforcing `isConnectable={false}` to disable manual connection creation until Day 5.
+
+---
+
+## 6. Directory Structure
+
 ```
 /
 ├── app/
@@ -150,17 +172,22 @@ Header
 │   │   │   ├── TreeHeader.tsx                 # Header with title and toolbar controls
 │   │   │   ├── NodePaletteSidebar.tsx         # Left sidebar: static node palette
 │   │   │   ├── TreeCanvasArea.tsx             # Center workspace: hierarchical tree canvas preview
+│   │   │   ├── TreeCanvas.tsx                 # React Flow interactive canvas with navigation toolbar
+│   │   │   ├── CustomNode.tsx                 # Reusable data-driven custom node component
 │   │   │   ├── PropertiesInspectorSidebar.tsx # Right sidebar: read-only inspector / empty state
 │   │   │   ├── TreeWorkspace.tsx              # Three-zone enterprise layout container
 │   │   │   └── TreeFoundationViewer.tsx       # Retained foundation diagnostic component
 │   │   └── ui/
 │   │       └── badge.tsx          # Reusable type/severity/status badge
+│   ├── lib/
+│   │   └── nodeTypeConfig.ts      # Shared framework-independent node presentation metadata
 │   ├── store/
 │   │   └── treeStore.ts           # Zustand store with document vs transient separation
 │   ├── types/
 │   │   └── tree.ts                # TypeScript strict interfaces and types
 │   └── tests/
-│       └── treeStore.test.ts      # Unit tests for tree model and state separation
+│       ├── treeStore.test.ts      # Unit tests for tree model and state separation
+│       └── nodeTypeConfig.test.ts # Unit tests for shared node presentation configuration
 ├── vitest.config.mjs              # Vitest runner configuration
 ├── REQUIREMENTS.md                # Requirements traceability matrix
 ├── CHANGELOG.md                   # Chronological development log
