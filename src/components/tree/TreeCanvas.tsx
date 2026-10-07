@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -11,9 +11,15 @@ import {
   applyNodeChanges,
   type NodeChange,
   type OnNodesChange,
-  type NodeProps,
-  Handle,
-  Position,
+  type Connection,
+  type OnConnect,
+  type OnReconnect,
+  type EdgeChange,
+  type OnEdgesChange,
+  type FinalConnectionState,
+  type HandleType,
+  ConnectionMode,
+  MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
@@ -23,13 +29,19 @@ import {
   RotateCcw,
   Grid,
   FolderTree,
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { isPolicyNodeType } from '../../lib/nodeFactory';
 import { getNodeTypeConfig } from '../../lib/nodeTypeConfig';
-import type { TreeNode } from '../../types/tree';
+import { validateConnection } from '../../lib/connectionValidation';
+import { isKeyboardEventTargetProtected } from '../../lib/keyboardSafety';
+import type { TreeNode, TreeEdge } from '../../types/tree';
 
 import { CustomNode } from './CustomNode';
+
+export { isKeyboardEventTargetProtected };
 
 const nodeTypes = {
   root: CustomNode,
@@ -42,7 +54,19 @@ const nodeTypes = {
  * Inner canvas component utilizing React Flow hooks.
  */
 const TreeCanvasInner: React.FC = () => {
-  const { nodes, edges, selectedNodeId, setSelectedNodeId, setNodes, createNode } = useTreeStore();
+  const {
+    nodes,
+    edges,
+    selectedNodeId,
+    selectedEdgeId,
+    setSelectedNodeId,
+    setSelectedEdgeId,
+    setNodes,
+    createNode,
+    addEdgeConnection,
+    reconnectEdgeConnection,
+    deleteEdge,
+  } = useTreeStore();
   const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition } = useReactFlow();
 
   // Reactive viewport coordinates and zoom from React Flow
@@ -56,6 +80,20 @@ const TreeCanvasInner: React.FC = () => {
   // Transient UI states for canvas (not persisted, not in undo history)
   const [gridVisible, setGridVisible] = useState(true);
   const [ariaFeedback, setAriaFeedback] = useState<string>('');
+  const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
+
+  // Ref tracking edge currently undergoing reconnection to support ignoreEdgeId during live validation
+  const reconnectingEdgeIdRef = useRef<string | null>(null);
+
+  // Auto-dismiss transient connection rejection message after 4.5 seconds
+  useEffect(() => {
+    if (connectionFeedback) {
+      const timer = setTimeout(() => {
+        setConnectionFeedback(null);
+      }, 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [connectionFeedback]);
 
   // Sync selectedNodeId with React Flow selected state
   const flowNodes = useMemo(() => {
@@ -65,10 +103,31 @@ const TreeCanvasInner: React.FC = () => {
     }));
   }, [nodes, selectedNodeId]);
 
+  // Map edges to include dynamic selected styling and direction arrow markers
+  const flowEdges = useMemo(() => {
+    return edges.map((edge) => {
+      const isSelected = edge.id === selectedEdgeId;
+      return {
+        ...edge,
+        selected: isSelected,
+        style: isSelected
+          ? { stroke: '#2563eb', strokeWidth: 2.5 }
+          : { stroke: '#94a3b8', strokeWidth: 1.5 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+          color: isSelected ? '#2563eb' : '#94a3b8',
+        },
+        interactionWidth: 20,
+      };
+    });
+  }, [edges, selectedEdgeId]);
+
   // Handle position changes when dragging nodes on canvas
   const onNodesChange: OnNodesChange<TreeNode> = useCallback(
     (changes: NodeChange<TreeNode>[]) => {
-      // Filter out node deletion - Day 4 does not implement node deletion
+      // Day 5 Node Deletion Protection: filter out node removal changes strictly
       const safeChanges = changes.filter((c) => c.type !== 'remove');
       if (safeChanges.length === 0) return;
       const updated = applyNodeChanges(safeChanges, nodes) as TreeNode[];
@@ -76,6 +135,76 @@ const TreeCanvasInner: React.FC = () => {
     },
     [nodes, setNodes]
   );
+
+  // Handle edge changes from React Flow selection or removals
+  const onEdgesChange: OnEdgesChange<TreeEdge> = useCallback(
+    (changes: EdgeChange<TreeEdge>[]) => {
+      for (const change of changes) {
+        if (change.type === 'remove') {
+          deleteEdge(change.id);
+        } else if (change.type === 'select') {
+          if (change.selected) {
+            setSelectedEdgeId(change.id);
+            setSelectedNodeId(null);
+          } else if (selectedEdgeId === change.id) {
+            setSelectedEdgeId(null);
+          }
+        }
+      }
+    },
+    [deleteEdge, setSelectedEdgeId, setSelectedNodeId, selectedEdgeId]
+  );
+
+  // Canvas selection click handlers
+  const handleNodeClick = useCallback(
+    (_: React.MouseEvent, node: TreeNode) => {
+      setSelectedNodeId(node.id);
+      setSelectedEdgeId(null);
+    },
+    [setSelectedNodeId, setSelectedEdgeId]
+  );
+
+  const handleEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: TreeEdge) => {
+      setSelectedEdgeId(edge.id);
+      setSelectedNodeId(null);
+    },
+    [setSelectedEdgeId, setSelectedNodeId]
+  );
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+  }, [setSelectedNodeId, setSelectedEdgeId]);
+
+  // Global keyboard listener enforcing edge deletion and node protection with input shielding
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isKeyboardEventTargetProtected(event.target)) {
+        return;
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        const currentSelectedEdgeId = useTreeStore.getState().selectedEdgeId;
+        const currentSelectedNodeId = useTreeStore.getState().selectedNodeId;
+
+        if (currentSelectedEdgeId) {
+          event.preventDefault();
+          const deleted = deleteEdge(currentSelectedEdgeId);
+          if (deleted) {
+            setAriaFeedback('Edge deleted.');
+          }
+        } else if (currentSelectedNodeId) {
+          // Node Deletion Protection (Day 5 requirement):
+          // Prevent browser back navigation on Backspace, but DO NOT delete selected node!
+          event.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteEdge]);
 
   // Fit View handler with safety check
   const handleFitView = useCallback(() => {
@@ -132,6 +261,139 @@ const TreeCanvasInner: React.FC = () => {
     [screenToFlowPosition, createNode]
   );
 
+  /**
+   * Live Connection Validation (Day 5 - Side-effect free).
+   * Pure evaluation used by React Flow while user drags a connection line over target handles.
+   * MUST NOT update store, show toasts, or perform any side-effects.
+   * Supports ignoreEdgeId when reconnecting an existing edge.
+   */
+  const isValidConnection = useCallback(
+    (connection: TreeEdge | Connection) => {
+      const result = validateConnection(
+        {
+          source: connection.source,
+          target: connection.target,
+          sourceHandle: connection.sourceHandle,
+          targetHandle: connection.targetHandle,
+        },
+        nodes,
+        edges,
+        reconnectingEdgeIdRef.current ? { ignoreEdgeId: reconnectingEdgeIdRef.current } : undefined
+      );
+      return result.ok;
+    },
+    [nodes, edges]
+  );
+
+  /**
+   * Connection Completion Handler (Day 5 - Atomic state mutation).
+   * Called by React Flow when a valid connection completes.
+   */
+  const onConnect: OnConnect = useCallback(
+    (connection) => {
+      const result = addEdgeConnection({
+        source: connection.source,
+        target: connection.target,
+        sourceHandle: connection.sourceHandle,
+        targetHandle: connection.targetHandle,
+      });
+
+      if (result.ok) {
+        setConnectionFeedback(null);
+        setAriaFeedback('Connection created successfully.');
+      } else {
+        setConnectionFeedback(result.message || 'Connection rejected.');
+        setAriaFeedback(result.message || 'Connection rejected.');
+      }
+    },
+    [addEdgeConnection]
+  );
+
+  /**
+   * Connection End Handler (Day 5 - Transient rejection feedback).
+   * Surfaces helpful feedback when a user drops a connection onto an invalid target handle.
+   * Dropping on empty canvas does NOT produce feedback.
+   */
+  const onConnectEnd = useCallback(
+    (_event: MouseEvent | TouchEvent, connectionState?: {
+      fromNode?: { id: string } | null;
+      toNode?: { id: string } | null;
+      isValid?: boolean | null;
+    }) => {
+      // Only announce feedback if user attempted connecting to a real node/handle and it was rejected
+      if (connectionState?.fromNode && connectionState?.toNode && !connectionState?.isValid) {
+        const validation = validateConnection(
+          {
+            source: connectionState.fromNode.id,
+            target: connectionState.toNode.id,
+          },
+          nodes,
+          edges
+        );
+        if (!validation.ok) {
+          setConnectionFeedback(validation.message);
+          setAriaFeedback(validation.message);
+        }
+      }
+    },
+    [nodes, edges]
+  );
+
+  /**
+   * Reconnection Handlers (Day 5 Part 2).
+   */
+  const handleReconnectStart = useCallback((_event: React.MouseEvent, edge: TreeEdge) => {
+    reconnectingEdgeIdRef.current = edge.id;
+  }, []);
+
+  const handleReconnect: OnReconnect<TreeEdge> = useCallback(
+    (oldEdge, newConnection) => {
+      const result = reconnectEdgeConnection(oldEdge, {
+        source: newConnection.source,
+        target: newConnection.target,
+        sourceHandle: newConnection.sourceHandle,
+        targetHandle: newConnection.targetHandle,
+      });
+
+      if (result.ok) {
+        setConnectionFeedback(null);
+        setAriaFeedback('Connection reconnected successfully.');
+      } else {
+        setConnectionFeedback(result.message || 'Reconnection rejected.');
+        setAriaFeedback(result.message || 'Reconnection rejected.');
+      }
+      reconnectingEdgeIdRef.current = null;
+    },
+    [reconnectEdgeConnection]
+  );
+
+  const handleReconnectEnd = useCallback(
+    (
+      _event: MouseEvent | TouchEvent,
+      edge: TreeEdge,
+      _handleType: HandleType,
+      connectionState?: FinalConnectionState
+    ) => {
+      if (connectionState && !connectionState.isValid && connectionState.toNode) {
+        const validation = validateConnection(
+          {
+            source: connectionState.fromNode?.id ?? edge.source,
+            target: connectionState.toNode?.id ?? edge.target,
+          },
+          nodes,
+          edges,
+          { ignoreEdgeId: edge.id }
+        );
+        if (!validation.ok) {
+          setConnectionFeedback(validation.message);
+          setAriaFeedback(validation.message);
+        }
+      }
+      reconnectingEdgeIdRef.current = null;
+    },
+    [nodes, edges]
+  );
+
   return (
     <div className="w-full h-full relative overflow-hidden bg-slate-50/60 select-none">
       {/* Live Accessibility Status Announcement */}
@@ -139,16 +401,47 @@ const TreeCanvasInner: React.FC = () => {
         {ariaFeedback}
       </div>
 
+      {/* Transient Connection Feedback Banner (Day 5 - Visible feedback on rejected attempts) */}
+      {connectionFeedback && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-30 max-w-lg bg-amber-50/95 backdrop-blur-xs border border-amber-300/80 text-amber-900 px-3.5 py-2 rounded-lg shadow-sm text-xs font-medium flex items-center gap-2 select-none transition-all animate-in fade-in slide-in-from-top-2"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
+          <span className="truncate">{connectionFeedback}</span>
+          <button
+            type="button"
+            onClick={() => setConnectionFeedback(null)}
+            className="ml-auto text-amber-600 hover:text-amber-800 p-0.5 rounded cursor-pointer transition-colors"
+            aria-label="Dismiss feedback"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* React Flow Graph Canvas */}
       <ReactFlow
         nodes={flowNodes}
-        edges={edges}
+        edges={flowEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
-        onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-        onPaneClick={() => setSelectedNodeId(null)}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
+        onPaneClick={handlePaneClick}
         onDragOver={onDragOver}
         onDrop={onDrop}
+        nodesConnectable={true}
+        edgesReconnectable={true}
+        onReconnect={handleReconnect}
+        onReconnectStart={handleReconnectStart}
+        onReconnectEnd={handleReconnectEnd}
+        connectionMode={ConnectionMode.Strict}
+        isValidConnection={isValidConnection}
+        onConnect={onConnect}
+        onConnectEnd={onConnectEnd}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         fitView
         fitViewOptions={{ padding: 0.25, minZoom: 0.2, maxZoom: 1.5 }}
@@ -157,12 +450,11 @@ const TreeCanvasInner: React.FC = () => {
         panOnDrag={true}
         selectionOnDrag={false}
         nodesDraggable={true}
-        nodesConnectable={false}
         elementsSelectable={true}
         deleteKeyCode={null}
         defaultEdgeOptions={{
           type: 'smoothstep',
-          style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+          interactionWidth: 20,
         }}
         proOptions={{ hideAttribution: true }}
       >

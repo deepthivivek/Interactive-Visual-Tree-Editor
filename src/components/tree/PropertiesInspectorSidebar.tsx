@@ -1,23 +1,48 @@
 'use client';
 
 import React from 'react';
-import { SlidersHorizontal, Info, X, Layers, Tag, FileText, CheckCircle2 } from 'lucide-react';
+import {
+  SlidersHorizontal,
+  Info,
+  X,
+  Layers,
+  Tag,
+  FileText,
+  CheckCircle2,
+  Trash2,
+  GitCommit,
+  ArrowDown,
+} from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { Badge } from '../ui/badge';
 
 export const PropertiesInspectorSidebar: React.FC = () => {
-  const { nodes, edges, selectedNodeId, setSelectedNodeId } = useTreeStore();
-  const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+  const {
+    nodes,
+    edges,
+    selectedNodeId,
+    selectedEdgeId,
+    setSelectedNodeId,
+    setSelectedEdgeId,
+    deleteEdge,
+  } = useTreeStore();
+
+  const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
+  const selectedEdge =
+    !selectedNode && selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) ?? null : null;
   const rootCount = nodes.filter((n) => n.type === 'root').length;
 
+  const sourceNode = selectedEdge ? nodes.find((n) => n.id === selectedEdge.source) : null;
+  const targetNode = selectedEdge ? nodes.find((n) => n.id === selectedEdge.target) : null;
+
   return (
-    <aside className="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 select-none overflow-y-auto">
+    <aside className="nokey w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 select-none overflow-y-auto">
       {/* Panel Header */}
       <div className="p-4 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-slate-500" />
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-            Node Inspector
+            {selectedEdge ? 'Connection Inspector' : 'Node Inspector'}
           </h2>
         </div>
         {selectedNode && (
@@ -25,6 +50,17 @@ export const PropertiesInspectorSidebar: React.FC = () => {
             onClick={() => setSelectedNodeId(null)}
             className="text-xs text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition cursor-pointer"
             title="Clear node selection"
+            aria-label="Clear node selection"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {selectedEdge && (
+          <button
+            onClick={() => setSelectedEdgeId(null)}
+            className="text-xs text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition cursor-pointer"
+            title="Clear connection selection"
+            aria-label="Clear connection selection"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -33,52 +69,7 @@ export const PropertiesInspectorSidebar: React.FC = () => {
 
       {/* Panel Body */}
       <div className="flex-1 p-4 space-y-4">
-        {!selectedNode ? (
-          /* Empty State */
-          <div className="space-y-6">
-            <div className="py-8 flex flex-col items-center justify-center text-center px-4">
-              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-3 shadow-2xs">
-                <SlidersHorizontal className="w-5 h-5 text-slate-400" />
-              </div>
-              <h3 className="text-sm font-semibold text-slate-800">
-                No node selected
-              </h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-[210px] leading-relaxed">
-                Select a node from the tree to view its properties.
-              </p>
-            </div>
-
-            {/* Quick Stats Section */}
-            <div className="border border-slate-200/80 rounded-lg p-3 bg-slate-50/50">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2.5">
-                Quick Stats
-              </div>
-              <div className="space-y-1.5 text-xs font-mono">
-                <div className="flex items-center justify-between text-slate-600 bg-white px-2.5 py-1.5 rounded border border-slate-200/60">
-                  <span className="font-sans text-slate-500">Nodes</span>
-                  <span className="font-semibold text-slate-900">{nodes.length}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600 bg-white px-2.5 py-1.5 rounded border border-slate-200/60">
-                  <span className="font-sans text-slate-500">Edges</span>
-                  <span className="font-semibold text-slate-900">{edges.length}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600 bg-white px-2.5 py-1.5 rounded border border-slate-200/60">
-                  <span className="font-sans text-slate-500">Root</span>
-                  <span className="font-semibold text-emerald-600 flex items-center gap-1">
-                    {rootCount} <CheckCircle2 className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200/60 text-[11px] text-slate-500 leading-relaxed">
-              <span className="font-semibold text-slate-700 block mb-0.5">
-                Inspector Scope:
-              </span>
-              Full live editing of node labels, parameters, and severity tags will be activated in the inspector milestone (Day 7).
-            </div>
-          </div>
-        ) : (
+        {selectedNode ? (
           /* Selected Node Read-Only Basic Information */
           <div className="space-y-4">
             {/* Primary Attributes */}
@@ -202,12 +193,137 @@ export const PropertiesInspectorSidebar: React.FC = () => {
               </span>
             </div>
           </div>
+        ) : selectedEdge ? (
+          /* Selected Edge Information (Day 5 Part 2) */
+          <div className="space-y-4">
+            <div className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-3.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Selected Edge
+                </span>
+                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                  {selectedEdge.data?.relationshipType ?? 'parent-child'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[11px] text-slate-400 block font-medium">Edge ID</span>
+                <span className="font-mono text-xs text-slate-700 font-medium break-all block mt-0.5">
+                  {selectedEdge.id}
+                </span>
+              </div>
+
+              {/* Hierarchy Endpoints Flow */}
+              <div className="space-y-2 pt-2 border-t border-slate-200/60 text-xs">
+                {/* Source (Parent) */}
+                <div className="p-2 rounded bg-white border border-slate-200/80">
+                  <div className="text-[10px] uppercase font-semibold text-slate-400 flex items-center justify-between">
+                    <span>Source (Parent)</span>
+                    {sourceNode && (
+                      <span className="capitalize text-slate-500 font-mono text-[9px]">
+                        {sourceNode.type}
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-medium text-slate-800 text-xs mt-0.5 truncate">
+                    {sourceNode?.data.label ?? selectedEdge.source}
+                  </div>
+                </div>
+
+                <div className="flex justify-center -my-1 text-slate-400">
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </div>
+
+                {/* Target (Child) */}
+                <div className="p-2 rounded bg-white border border-slate-200/80">
+                  <div className="text-[10px] uppercase font-semibold text-slate-400 flex items-center justify-between">
+                    <span>Target (Child)</span>
+                    {targetNode && (
+                      <span className="capitalize text-slate-500 font-mono text-[9px]">
+                        {targetNode.type}
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-medium text-slate-800 text-xs mt-0.5 truncate">
+                    {targetNode?.data.label ?? selectedEdge.target}
+                  </div>
+                </div>
+              </div>
+
+              {/* Delete Edge Action */}
+              <div className="pt-2 border-t border-slate-200/60">
+                <button
+                  type="button"
+                  onClick={() => deleteEdge(selectedEdge.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold cursor-pointer transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Connection</span>
+                </button>
+                <p className="text-[10px] text-slate-400 text-center mt-1">
+                  Or press <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Delete</kbd> / <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Backspace</kbd>
+                </p>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-md bg-blue-50/60 border border-blue-100 text-[11px] text-blue-700 flex items-start gap-1.5">
+              <GitCommit className="w-3.5 h-3.5 shrink-0 mt-0.5 text-blue-500" />
+              <span>
+                Drag either endpoint handle to reconnect this edge to another valid node.
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Empty State */
+          <div className="space-y-6">
+            <div className="py-8 flex flex-col items-center justify-center text-center px-4">
+              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-3 shadow-2xs">
+                <SlidersHorizontal className="w-5 h-5 text-slate-400" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-800">
+                No element selected
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-[210px] leading-relaxed">
+                Select a node or connection line from the tree to view its properties.
+              </p>
+            </div>
+
+            {/* Quick Stats Section */}
+            <div className="border border-slate-200/80 rounded-lg p-3 bg-slate-50/50">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2.5">
+                Quick Stats
+              </div>
+              <div className="space-y-1.5 text-xs font-mono">
+                <div className="flex items-center justify-between text-slate-600 bg-white px-2.5 py-1.5 rounded border border-slate-200/60">
+                  <span className="font-sans text-slate-500">Nodes</span>
+                  <span className="font-semibold text-slate-900">{nodes.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600 bg-white px-2.5 py-1.5 rounded border border-slate-200/60">
+                  <span className="font-sans text-slate-500">Edges</span>
+                  <span className="font-semibold text-slate-900">{edges.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600 bg-white px-2.5 py-1.5 rounded border border-slate-200/60">
+                  <span className="font-sans text-slate-500">Root</span>
+                  <span className="font-semibold text-emerald-600 flex items-center gap-1">
+                    {rootCount} <CheckCircle2 className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200/60 text-[11px] text-slate-500 leading-relaxed">
+              <span className="font-semibold text-slate-700 block mb-0.5">
+                Inspector Scope:
+              </span>
+              Full live editing of node labels, parameters, and severity tags will be activated in the inspector milestone (Day 7).
+            </div>
+          </div>
         )}
       </div>
 
       {/* Footer Info */}
       <div className="p-3 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 text-center">
-        Day 1 Foundation • Selection state only
+        Day 5 Foundation • Directional Edge Safety & Selection
       </div>
     </aside>
   );

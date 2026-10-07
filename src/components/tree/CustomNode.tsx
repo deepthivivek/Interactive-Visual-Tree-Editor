@@ -68,12 +68,12 @@ export const CustomNode: React.FC<NodeProps> = memo(({ type, data, selected }) =
           : `${typeConfig.styling.cardBorder} ${typeConfig.styling.cardBorderHover} hover:shadow-xs`
       }`}
     >
-      {/* Top Target Handle (Required for incoming edges in hierarchy; non-connectable in Day 3) */}
+      {/* Top Target Handle (Child incoming handle in hierarchy) */}
       <Handle
         type="target"
         position={Position.Top}
-        isConnectable={false}
-        className="!w-2 !h-2 !bg-slate-300 !border !border-white !rounded-full !-top-1 !pointer-events-none transition-colors"
+        isConnectable={true}
+        className="!w-2.5 !h-2.5 !bg-slate-400 hover:!bg-blue-600 !border-2 !border-white !rounded-full !-top-1.5 transition-colors cursor-crosshair"
       />
 
       {/* Top Header Row: Icon + Type Badge + Status Indicator */}
@@ -132,12 +132,12 @@ export const CustomNode: React.FC<NodeProps> = memo(({ type, data, selected }) =
         )}
       </div>
 
-      {/* Bottom Source Handle (Required for outgoing edges in hierarchy; non-connectable in Day 3) */}
+      {/* Bottom Source Handle (Parent outgoing handle in hierarchy) */}
       <Handle
         type="source"
         position={Position.Bottom}
-        isConnectable={false}
-        className="!w-2 !h-2 !bg-slate-300 !border !border-white !rounded-full !-bottom-1 !pointer-events-none transition-colors"
+        isConnectable={true}
+        className="!w-2.5 !h-2.5 !bg-slate-400 hover:!bg-blue-600 !border-2 !border-white !rounded-full !-bottom-1.5 transition-colors cursor-crosshair"
       />
     </div>
   );

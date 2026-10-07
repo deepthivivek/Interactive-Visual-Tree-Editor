@@ -16,7 +16,7 @@ export const TreeHeader: React.FC = () => {
   const { nodes, loadSampleTree } = useTreeStore();
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 select-none z-20">
+    <header className="nokey h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 select-none z-20">
       {/* Left: Application Logo, Title, Subtitle */}
       <div className="flex items-center gap-3.5 min-w-0">
         <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">

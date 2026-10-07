@@ -77,6 +77,7 @@ export interface TreeDocument {
  */
 export interface TreeUiState {
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
 }
 
 /**
@@ -89,12 +90,30 @@ export interface TreeStoreState {
 
   // Transient UI State
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
 
   // Actions
   setNodes: (nodes: TreeNode[]) => void;
   setEdges: (edges: TreeEdge[]) => void;
   setSelectedNodeId: (nodeId: string | null) => void;
+  setSelectedEdgeId: (edgeId: string | null) => void;
   createNode: (type: NodeType, position: { x: number; y: number }) => TreeNode | null;
+  addEdgeConnection: (connection: {
+    source?: string | null;
+    target?: string | null;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }) => { ok: boolean; message?: string; reason?: string; edge?: TreeEdge };
+  reconnectEdgeConnection: (
+    oldEdge: TreeEdge | { id: string } | null | undefined,
+    newConnection: {
+      source?: string | null;
+      target?: string | null;
+      sourceHandle?: string | null;
+      targetHandle?: string | null;
+    } | null | undefined
+  ) => { ok: boolean; message?: string; reason?: string; edge?: TreeEdge };
+  deleteEdge: (edgeId: string) => boolean;
   loadSampleTree: () => void;
   resetToSampleData: () => void;
 }

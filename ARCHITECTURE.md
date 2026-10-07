@@ -190,7 +190,88 @@ Day 4 intentionally decouples node creation from connection and hierarchy valida
 
 ---
 
-## 7. Directory Structure
+## 7. Directional Parent-Child Connection Architecture (Implemented in Day 5)
+
+### Relationship Rules Single Source of Truth (`src/lib/relationshipRules.ts`)
+Directional grammar policy is strictly defined and decoupled from React components:
+- **Direction**: `SOURCE = PARENT` (bottom handle), `TARGET = CHILD` (top handle).
+- **Valid Relationships**:
+  - `Root -> Rule`
+  - `Rule -> Condition`
+  - `Rule -> Action`
+  - `Condition -> Action`
+- **Prohibited Pairings**:
+  - `Root -> Condition`
+  - `Root -> Action`
+  - `anything -> Root` (Root cannot have a parent)
+  - `Action -> anything` (Action cannot have children)
+  - `Condition -> Rule`
+- **Pure Helpers**: `isValidParentChildRelationship`, `getAllowedChildTypes`, `getAllowedParentTypes`, `canHaveParent`, `canAcceptChild`, `getRelationshipType`.
+
+### Pure Graph Cycle Detection (`src/lib/cycleDetection.ts`)
+- **Acyclic Enforcement**: Uses directed BFS reachability to determine if `source` is reachable from `target` prior to edge creation.
+- **Support for Reconnection**: Accepts `ignoreEdgeId` to evaluate modified edges without self-invalidation.
+- **Zero UI Coupling**: Pure algorithmic functions with zero dependencies on React, Zustand, or the DOM.
+
+### Shared Connection Validation Pipeline (`src/lib/connectionValidation.ts`)
+Unified, side-effect-free validator returning `{ ok: true, relationshipType }` or `{ ok: false, reason, message }`:
+1. Source and target input presence (`malformed`)
+2. Self-link rejection (`self-link`)
+3. Node existence check (`missing-node`)
+4. Relationship grammar verification (`invalid-relationship`)
+5. Duplicate edge check (`duplicate-edge`)
+6. Single-parent hierarchy constraint (`has-parent`)
+7. Cycle prevention (`cycle`)
+
+### Connection Lifecycle in React Flow
+```
+User starts drag from bottom source handle
+    ↓
+Dragging over target handles
+    ↓
+isValidConnection (pure, side-effect free, styles connection line/handle)
+    ↓
+User releases pointer:
+    ├── On Valid Target Handle:
+    │   └── onConnect fires → Zustand addEdgeConnection() → atomic edge append
+    ├── On Invalid Target Handle:
+    │   └── onConnectEnd fires → validateConnection() → transient feedback banner
+    └── On Empty Canvas:
+        └── onConnectEnd fires → toNode is null → zero rejection feedback
+```
+
+### Safe Edge Reconnection (Day 5 Part 2)
+```
+Existing edge handle drag starts
+    ↓
+reconnectingEdgeIdRef.current set to existingEdge.id
+    ↓
+isValidConnection uses shared validator with ignoreEdgeId: existingEdge.id
+    ↓
+User drops connection on target handle:
+    ├── Valid Reconnection:
+    │   └── onReconnect fires → Zustand reconnectEdgeConnection()
+    │       ├── Pre-validation before mutating original edge
+    │       ├── Evaluates proposed replacement with ignoreEdgeId
+    │       └── Atomic replacement in edges array preserving edge ID & custom configuration
+    └── Invalid Reconnection:
+        ├── Rejection feedback displayed in transient banner
+        └── ZERO graph mutations (original edge remains 100% intact)
+```
+
+### Edge Selection & Deletion Safety (Day 5 Part 2)
+- **Transient Selection (`selectedEdgeId`)**: Maintained in store transient state without polluting document state. Styled with royal blue stroke (`#2563eb`), 2.5px width, and matching arrow markers.
+- **Atomic Edge Deletion (`deleteEdge`)**: Deletes only the targeted edge, preserving all nodes, unrelated edges, and `selectedNodeId`. Clears `selectedEdgeId` safely.
+- **Node Deletion Protection (Strict Day 6 Boundary)**: Pressing `Delete` or `Backspace` on a selected node does NOT delete the node. Node deletion is strictly deferred to Day 6.
+- **Input Keyboard Safety (`src/lib/keyboardSafety.ts`)**: Type guard `isKeyboardEventTargetProtected` checks `<input>`, `<textarea>`, `<select>`, `contenteditable`, and elements inside `.nokey`. Keystrokes in inputs freely edit text without triggering canvas operations.
+
+### Multi-Root State & Validation Boundary
+- **Temporary Multi-Root State**: During authoring, the editor permits multiple roots, orphan nodes, and disconnected subtrees without blocking creation.
+- **Day 13 Boundary**: Whole-graph structural validation (e.g. enforcing exactly one root for a complete exportable tree) strictly belongs to Day 13.
+
+---
+
+## 8. Directory Structure
 
 ```
 /
@@ -206,20 +287,24 @@ Day 4 intentionally decouples node creation from connection and hierarchy valida
 │   │       └── page.tsx           # Tree Editor page container rendering TreeWorkspace
 │   ├── components/
 │   │   ├── tree/
-│   │   │   ├── TreeHeader.tsx                 # Header with title, toolbar controls, and Load Sample Tree
-│   │   │   ├── NodePaletteSidebar.tsx         # Left sidebar hosting navigation and NodePalette
+│   │   │   ├── TreeHeader.tsx                 # Header with title, toolbar controls, and Load Sample Tree (.nokey)
+│   │   │   ├── NodePaletteSidebar.tsx         # Left sidebar hosting navigation and NodePalette (.nokey)
 │   │   │   ├── NodePalette.tsx                # HTML5 draggable node palette
 │   │   │   ├── TreeCanvasArea.tsx             # Center workspace: hierarchical tree canvas preview
-│   │   │   ├── TreeCanvas.tsx                 # React Flow interactive canvas with drop handling
-│   │   │   ├── CustomNode.tsx                 # Reusable data-driven custom node component
-│   │   │   ├── PropertiesInspectorSidebar.tsx # Right sidebar: read-only inspector / empty state
+│   │   │   ├── TreeCanvas.tsx                 # React Flow interactive canvas with connections, reconnection, and keyboard safety
+│   │   │   ├── CustomNode.tsx                 # Reusable data-driven custom node component with connectable handles
+│   │   │   ├── PropertiesInspectorSidebar.tsx # Right sidebar: node & connection inspector (.nokey)
 │   │   │   ├── TreeWorkspace.tsx              # Three-zone enterprise layout container
 │   │   │   └── TreeFoundationViewer.tsx       # Retained foundation diagnostic component
 │   │   └── ui/
 │   │       └── badge.tsx          # Reusable type/severity/status badge
 │   ├── lib/
-│   │   ├── nodeTypeConfig.ts      # Shared framework-independent node presentation metadata
-│   │   └── nodeFactory.ts         # Pure node creation factory and runtime type guard
+│   │   ├── nodeTypeConfig.ts          # Shared framework-independent node presentation metadata
+│   │   ├── nodeFactory.ts             # Pure node creation factory and runtime type guard
+│   │   ├── relationshipRules.ts       # Relationship rules policy single source of truth
+│   │   ├── cycleDetection.ts          # Pure graph cycle detection algorithms
+│   │   ├── connectionValidation.ts    # Unified connection validation pipeline
+│   │   └── keyboardSafety.ts          # Pure keyboard event target protection guard
 │   ├── store/
 │   │   └── treeStore.ts           # Zustand store with document vs transient separation
 │   ├── types/
@@ -227,7 +312,8 @@ Day 4 intentionally decouples node creation from connection and hierarchy valida
 │   └── tests/
 │       ├── treeStore.test.ts              # Unit tests for tree model and state separation
 │       ├── nodeTypeConfig.test.ts         # Unit tests for shared node presentation configuration
-│       └── nodeFactoryAndCreation.test.ts # Unit tests for factory, creation, and immutability
+│       ├── nodeFactoryAndCreation.test.ts # Unit tests for factory, creation, and immutability
+│       └── connectionValidation.test.ts   # Unit tests for relationships, cycles, and connections
 ├── vitest.config.mjs              # Vitest runner configuration
 ├── REQUIREMENTS.md                # Requirements traceability matrix
 ├── CHANGELOG.md                   # Chronological development log
@@ -236,7 +322,7 @@ Day 4 intentionally decouples node creation from connection and hierarchy valida
 
 ---
 
-## 8. Planned Modules (Strictly Deferred to Future Days)
+## 9. Planned Modules (Strictly Deferred to Future Days)
 
 The following pure-function business logic modules will reside under `src/lib/` and must remain completely decoupled from React components:
 

@@ -11,7 +11,7 @@ import { NodePalette } from './NodePalette';
 
 export const NodePaletteSidebar: React.FC = () => {
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 select-none overflow-y-auto">
+    <aside className="nokey w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 select-none overflow-y-auto">
       {/* 1. PRIMARY APPLICATION NAVIGATION */}
       <div className="p-3 border-b border-slate-100 space-y-1">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 px-2 py-1">

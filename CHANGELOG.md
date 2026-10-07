@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 5 Part 2] - 2026-10-07: Connection Hardening, Edge Reconnection & Safety
+
+### Added
+- **Safe Edge Reconnection Architecture (`src/store/treeStore.ts`, `src/lib/connectionValidation.ts`)**:
+  - Implemented `reconnectEdgeConnection(oldEdge, newConnection)` with pre-mutation validation.
+  - Validates proposed replacement connection BEFORE modifying or removing the existing edge, guaranteeing the original edge is never lost if reconnection is invalid.
+  - Enforced `ignoreEdgeId` across duplicate checks, single-parent constraints, and cycle detection so the edge being replaced does not falsely invalidate itself.
+  - Atomic replacement: on success, preserves edge ID, custom styling, and metadata while updating endpoints and `relationshipType`. On failure, produces ZERO graph mutations and surfaces clear feedback.
+- **Transient Edge Selection State (`src/types/tree.ts`, `src/store/treeStore.ts`)**:
+  - Added `selectedEdgeId` to transient UI state (ephemeral, not persisted, zero undo history).
+  - Styled selected edges with prominent royal blue stroke (`#2563eb`), 2.5px width, and matching arrow markers.
+  - Syncs with React Flow edge clicks and deselects safely on canvas pane clicks.
+  - Automatic cleanup: `deleteEdge` and `setEdges` automatically clear `selectedEdgeId` if the edge no longer exists, ensuring the inspector never reads a stale or deleted edge.
+- **Edge Deletion Action (`src/store/treeStore.ts`)**:
+  - Added `deleteEdge(edgeId)`: deletes only the specified edge while preserving all nodes, unrelated edges, and `selectedNodeId`.
+  - Keyboard shortcut: pressing `Delete` or `Backspace` deletes the selected edge.
+- **Node Deletion Protection (Strict Day 6 Boundary)**:
+  - Disabled node deletion across keyboard events and React Flow changes.
+  - Pressing `Delete` or `Backspace` with a node selected preserves the node intact. Node deletion is strictly deferred to Day 6.
+- **Input Keyboard Safety (`src/lib/keyboardSafety.ts`)**:
+  - Implemented pure `isKeyboardEventTargetProtected` type guard protecting `<input>`, `<textarea>`, `<select>`, `contenteditable`, and elements inside `.nokey`.
+  - Added `.nokey` class to inspector, palette sidebar, and header controls.
+  - Guaranteed normal typing and backspace/delete text editing in UI controls without triggering canvas edge deletion.
+- **Connection Inspector Panel (`src/components/tree/PropertiesInspectorSidebar.tsx`)**:
+  - Enhanced inspector to show connection details when an edge is selected (endpoints, relationship type, edge ID).
+  - Added explicit "Delete Connection" button with accessible feedback.
+
+### Tested
+- Created `src/tests/reconnectionAndEdgeSafety.test.ts` (22 unit tests):
+  - Verified valid reconnection atomicity, ID preservation, and unrelated graph preservation.
+  - Verified invalid reconnection zero graph mutation and original edge preservation.
+  - Verified `ignoreEdgeId` behavior preventing false duplicate, false parent, and false cycle errors.
+  - Verified edge selection, deletion, and `selectedEdgeId` cleanup.
+  - Verified node preservation during edge deletion and node selection retention.
+  - Verified malformed connection, missing node, and stale edge error safety.
+  - Verified keyboard event target protection guard across inputs, editables, `.nokey` containers, and canvas elements.
+- Total test suite now passes with 95 tests across 5 test suites.
+
+## [Day 5] - 2026-10-07: Directional Parent-Child Connections & Graph Relationship Validation
+
+### Added
+- **Relationship Rules Single Source of Truth (`src/lib/relationshipRules.ts`)**:
+  - Defined strict directional parent-to-child relationship policies (`Root -> Rule`, `Rule -> Condition`, `Rule -> Action`, `Condition -> Action`).
+  - Prohibited invalid pairings (`Root -> Condition`, `Root -> Action`, `anything -> Root`, `Action -> anything`, `Condition -> Rule`).
+  - Added pure typed helpers: `isValidParentChildRelationship`, `getAllowedChildTypes`, `getAllowedParentTypes`, `canHaveParent`, `canAcceptChild`, `getRelationshipType`.
+- **Pure Graph Cycle Detection (`src/lib/cycleDetection.ts`)**:
+  - Implemented `wouldCreateCycle(source, target, edges, ignoreEdgeId)` using directed reachability analysis.
+  - Implemented `hasAnyCycle(edges)` topological sort algorithm for whole-graph acyclic validation.
+  - Supported `ignoreEdgeId` for reconnecting existing edges without false positives.
+- **Unified Connection Validator (`src/lib/connectionValidation.ts`)**:
+  - Single pure validation pipeline shared across canvas drag interactions, completion handlers, and test suites.
+  - Explicit failure reason codes: `'malformed'`, `'missing-node'`, `'self-link'`, `'invalid-relationship'`, `'has-parent'`, `'duplicate-edge'`, `'cycle'`.
+  - Zero side effects: does not mutate graph or UI state.
+- **Zustand Atomic Connection Action (`src/store/treeStore.ts`)**:
+  - `addEdgeConnection(connection)`: atomicity guaranteed—zero mutations on failure, exactly one edge created with a unique stable ID on success.
+- **Interactive React Flow Connection Integration (`src/components/tree/TreeCanvas.tsx`)**:
+  - Enabled connectable handles on `CustomNode` (top target, bottom source) with `ConnectionMode.Strict`.
+  - `isValidConnection`: Pure, live validation hook giving real-time connection feedback while dragging without triggering error toasts.
+  - `onConnect`: Commits valid connections atomically to the Zustand store.
+  - `onConnectEnd`: Surfaces transient feedback only when a user drops onto an invalid handle (dropping on empty canvas produces no feedback).
+  - Configured directional closed arrow markers (`MarkerType.ArrowClosed`) and `interactionWidth: 20` via `defaultEdgeOptions`.
+  - Added transient accessible feedback banner with auto-dismiss timer.
+
+### Tested
+- Created `src/tests/connectionValidation.test.ts` (30 unit tests):
+  - Verified all 4 valid relationship pairings.
+  - Verified rejection of all invalid pairings (including Root as target and Action as source).
+  - Verified rejection of self-links, duplicate edges, and second parents.
+  - Verified cycle detection (self-cycle, 2-node cycle, multi-hop cycle, and acyclic graphs).
+  - Verified input malformation safety and missing node detection.
+  - Verified Zustand atomicity and tolerance for temporary multiple Root nodes.
+- Total test suite now passes with 73 unit tests across 4 test suites.
+
 ## [Day 4] - 2026-10-06: Node Palette, HTML5 Drag-and-Drop & Centralized Node Creation
 
 ### Added

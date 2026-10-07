@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { TreeNode, TreeEdge, TreeStoreState, NodeType } from '../types/tree';
 import { createDefaultNode, isPolicyNodeType } from '../lib/nodeFactory';
+import { validateConnection } from '../lib/connectionValidation';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -318,11 +319,18 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
 
   // Transient UI State
   selectedNodeId: null,
+  selectedEdgeId: null,
 
   // Actions
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
-  setEdges: (edges: TreeEdge[]) => set({ edges }),
+  setEdges: (edges: TreeEdge[]) => {
+    const { selectedEdgeId } = get();
+    const nextSelectedEdgeId =
+      selectedEdgeId && edges.some((e) => e.id === selectedEdgeId) ? selectedEdgeId : null;
+    set({ edges, selectedEdgeId: nextSelectedEdgeId });
+  },
   setSelectedNodeId: (nodeId: string | null) => set({ selectedNodeId: nodeId }),
+  setSelectedEdgeId: (edgeId: string | null) => set({ selectedEdgeId: edgeId }),
 
   /**
    * Centralized Node Creation Action (Day 4).
@@ -354,6 +362,160 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
   },
 
   /**
+   * Directional Parent-Child Edge Connection Action (Day 5).
+   * - Enforces shared validateConnection pipeline (relationship rules, single-parent constraint, cycles, duplicate edges).
+   * - Atomic: if invalid, zero graph mutations occur.
+   * - If valid, exactly one edge is created with a unique ID and appended immutably.
+   */
+  addEdgeConnection: (connection) => {
+    const { nodes, edges } = get();
+    const validation = validateConnection(connection, nodes, edges);
+
+    if (!validation.ok) {
+      return {
+        ok: false,
+        reason: validation.reason,
+        message: validation.message,
+      };
+    }
+
+    const uniqueSuffix =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().slice(0, 8)
+        : Math.random().toString(36).substring(2, 8);
+
+    const newEdgeId = `e-${connection.source}-${connection.target}-${uniqueSuffix}`;
+
+    const newEdge: TreeEdge = {
+      id: newEdgeId,
+      source: connection.source!,
+      target: connection.target!,
+      sourceHandle: connection.sourceHandle ?? null,
+      targetHandle: connection.targetHandle ?? null,
+      type: 'smoothstep',
+      data: {
+        relationshipType: validation.relationshipType,
+      },
+    };
+
+    set({
+      edges: [...edges, newEdge],
+    });
+
+    return {
+      ok: true,
+      edge: newEdge,
+    };
+  },
+
+  /**
+   * Safe Edge Reconnection Action (Day 5 Part 2).
+   *
+   * Flow:
+   * 1. Validates inputs and confirms oldEdge exists in current graph.
+   * 2. Validates proposed replacement connection BEFORE modifying or removing oldEdge.
+   * 3. Passes `ignoreEdgeId = oldEdge.id` so the old edge does not falsely count as duplicate,
+   *    parent, or cycle.
+   * 4. If invalid: ZERO graph mutations occur! Original edge and graph remain 100% intact.
+   * 5. If valid: performs an atomic replacement in `edges`, preserving edge ID, custom styling,
+   *    and configuration metadata while updating connection endpoints and relationshipType.
+   */
+  reconnectEdgeConnection: (oldEdge, newConnection) => {
+    if (!oldEdge || !oldEdge.id || typeof oldEdge.id !== 'string') {
+      return {
+        ok: false,
+        reason: 'malformed',
+        message: 'Invalid or missing edge reference to reconnect.',
+      };
+    }
+
+    if (!newConnection || !newConnection.source || !newConnection.target) {
+      return {
+        ok: false,
+        reason: 'malformed',
+        message: 'Reconnected edge must have valid source and target identifiers.',
+      };
+    }
+
+    const { nodes, edges, selectedEdgeId } = get();
+    const existingEdge = edges.find((e) => e.id === oldEdge.id);
+
+    if (!existingEdge) {
+      return {
+        ok: false,
+        reason: 'missing-node',
+        message: 'The edge to reconnect does not exist in the current graph.',
+      };
+    }
+
+    // CRITICAL: Validate proposed connection BEFORE removing or mutating the existing edge!
+    const validation = validateConnection(newConnection, nodes, edges, {
+      ignoreEdgeId: existingEdge.id,
+    });
+
+    if (!validation.ok) {
+      // STRICT ATOMICITY: ZERO graph mutation on rejection!
+      return {
+        ok: false,
+        reason: validation.reason,
+        message: validation.message,
+      };
+    }
+
+    // VALID RECONNECTION: Perform atomic replacement preserving edge ID and configuration
+    const updatedEdge: TreeEdge = {
+      ...existingEdge,
+      source: newConnection.source,
+      target: newConnection.target,
+      sourceHandle: newConnection.sourceHandle ?? null,
+      targetHandle: newConnection.targetHandle ?? null,
+      data: {
+        ...existingEdge.data,
+        relationshipType: validation.relationshipType,
+      },
+    };
+
+    const updatedEdges = edges.map((e) => (e.id === existingEdge.id ? updatedEdge : e));
+
+    set({
+      edges: updatedEdges,
+      selectedEdgeId: selectedEdgeId === existingEdge.id ? existingEdge.id : selectedEdgeId,
+    });
+
+    return {
+      ok: true,
+      edge: updatedEdge,
+    };
+  },
+
+  /**
+   * Day 5 Edge Deletion.
+   * - Deletes ONLY the specified edge.
+   * - Preserves all nodes, unrelated edges, and selectedNodeId.
+   * - Safely clears selectedEdgeId if the deleted edge was selected.
+   * - Atomic: if edgeId does not exist, zero graph mutation occurs.
+   */
+  deleteEdge: (edgeId: string) => {
+    if (!edgeId || typeof edgeId !== 'string') {
+      return false;
+    }
+
+    const { edges, selectedEdgeId } = get();
+    const existing = edges.find((e) => e.id === edgeId);
+    if (!existing) {
+      return false;
+    }
+
+    const updatedEdges = edges.filter((e) => e.id !== edgeId);
+    set({
+      edges: updatedEdges,
+      selectedEdgeId: selectedEdgeId === edgeId ? null : selectedEdgeId,
+    });
+
+    return true;
+  },
+
+  /**
    * Replaces current graph with the canonical Day 1 sample.
    * Restores predefined IDs, positions, and edges without shared-reference mutation.
    */
@@ -362,6 +524,7 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
       nodes: getCanonicalSampleNodes(),
       edges: getCanonicalSampleEdges(),
       selectedNodeId: null,
+      selectedEdgeId: null,
     }),
 
   resetToSampleData: () =>
@@ -369,5 +532,6 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
       nodes: getCanonicalSampleNodes(),
       edges: getCanonicalSampleEdges(),
       selectedNodeId: null,
+      selectedEdgeId: null,
     }),
 }));
