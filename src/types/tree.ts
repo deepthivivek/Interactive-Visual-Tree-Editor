@@ -94,5 +94,7 @@ export interface TreeStoreState {
   setNodes: (nodes: TreeNode[]) => void;
   setEdges: (edges: TreeEdge[]) => void;
   setSelectedNodeId: (nodeId: string | null) => void;
+  createNode: (type: NodeType, position: { x: number; y: number }) => TreeNode | null;
+  loadSampleTree: () => void;
   resetToSampleData: () => void;
 }

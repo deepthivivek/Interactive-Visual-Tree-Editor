@@ -13,7 +13,7 @@ import {
 import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/treeStore';
 
 export const TreeHeader: React.FC = () => {
-  const { nodes, resetToSampleData } = useTreeStore();
+  const { nodes, loadSampleTree } = useTreeStore();
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 select-none z-20">
@@ -68,14 +68,14 @@ export const TreeHeader: React.FC = () => {
           <span className="hidden xl:inline">JSON</span>
         </button>
 
-        {/* Reset Sample Data (Active Day 1 Action) */}
+        {/* Load Sample Tree (Active Day 1/4 Action) */}
         <button
-          onClick={() => resetToSampleData()}
+          onClick={() => loadSampleTree()}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 transition shadow-2xs cursor-pointer"
-          title="Reset to default Day 1 compliance template"
+          title="Replace current tree with the canonical Day 1 sample compliance template"
         >
           <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-          <span>Reset Sample</span>
+          <span>Load Sample Tree</span>
         </button>
 
         {/* Theme Placeholder */}

@@ -25,6 +25,8 @@ import {
   FolderTree,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
+import { isPolicyNodeType } from '../../lib/nodeFactory';
+import { getNodeTypeConfig } from '../../lib/nodeTypeConfig';
 import type { TreeNode } from '../../types/tree';
 
 import { CustomNode } from './CustomNode';
@@ -40,8 +42,8 @@ const nodeTypes = {
  * Inner canvas component utilizing React Flow hooks.
  */
 const TreeCanvasInner: React.FC = () => {
-  const { nodes, edges, selectedNodeId, setSelectedNodeId, setNodes } = useTreeStore();
-  const { zoomIn, zoomOut, fitView, setViewport } = useReactFlow();
+  const { nodes, edges, selectedNodeId, setSelectedNodeId, setNodes, createNode } = useTreeStore();
+  const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition } = useReactFlow();
 
   // Reactive viewport coordinates and zoom from React Flow
   const { x, y, zoom } = useViewport();
@@ -53,6 +55,7 @@ const TreeCanvasInner: React.FC = () => {
 
   // Transient UI states for canvas (not persisted, not in undo history)
   const [gridVisible, setGridVisible] = useState(true);
+  const [ariaFeedback, setAriaFeedback] = useState<string>('');
 
   // Sync selectedNodeId with React Flow selected state
   const flowNodes = useMemo(() => {
@@ -65,7 +68,7 @@ const TreeCanvasInner: React.FC = () => {
   // Handle position changes when dragging nodes on canvas
   const onNodesChange: OnNodesChange<TreeNode> = useCallback(
     (changes: NodeChange<TreeNode>[]) => {
-      // Filter out node deletion - Day 2 does not implement node deletion
+      // Filter out node deletion - Day 4 does not implement node deletion
       const safeChanges = changes.filter((c) => c.type !== 'remove');
       if (safeChanges.length === 0) return;
       const updated = applyNodeChanges(safeChanges, nodes) as TreeNode[];
@@ -90,8 +93,52 @@ const TreeCanvasInner: React.FC = () => {
     }
   }, [nodes.length, fitView, setViewport]);
 
+  // HTML5 Drag-and-Drop Handlers for Node Creation (Day 4)
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      // 1. Extract and validate runtime drag data using runtime type guard
+      const rawType = event.dataTransfer.getData('application/reactflow');
+      if (!isPolicyNodeType(rawType)) {
+        setAriaFeedback('Node was not added. Invalid node type.');
+        return;
+      }
+
+      // 2. React Flow screen-to-flow coordinate conversion
+      const flowPosition = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      // 3. Coordinate validation (prevent NaN, Infinity)
+      if (!Number.isFinite(flowPosition.x) || !Number.isFinite(flowPosition.y)) {
+        setAriaFeedback('Node was not added. Invalid drop coordinates.');
+        return;
+      }
+
+      // 4. Centralized createNode action in Zustand store
+      const createdNode = createNode(rawType, flowPosition);
+      if (createdNode) {
+        const typeConfig = getNodeTypeConfig(rawType);
+        setAriaFeedback(`${typeConfig.displayLabel} added to the canvas.`);
+      }
+    },
+    [screenToFlowPosition, createNode]
+  );
+
   return (
     <div className="w-full h-full relative overflow-hidden bg-slate-50/60 select-none">
+      {/* Live Accessibility Status Announcement */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {ariaFeedback}
+      </div>
+
       {/* React Flow Graph Canvas */}
       <ReactFlow
         nodes={flowNodes}
@@ -100,6 +147,8 @@ const TreeCanvasInner: React.FC = () => {
         onNodesChange={onNodesChange}
         onNodeClick={(_, node) => setSelectedNodeId(node.id)}
         onPaneClick={() => setSelectedNodeId(null)}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         fitView
         fitViewOptions={{ padding: 0.25, minZoom: 0.2, maxZoom: 1.5 }}
@@ -139,7 +188,7 @@ const TreeCanvasInner: React.FC = () => {
               Drag a node from the left to get started.
             </p>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-              Node Palette drag-and-drop will be activated in Day 4.
+              Drop a node onto the canvas to begin building your tree.
             </p>
           </div>
         </div>

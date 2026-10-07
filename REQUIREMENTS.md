@@ -9,7 +9,7 @@
 | **5. Minimal Foundation Viewer (/tree-editor)** | Yes | Yes | Yes | Clean production-styled view rendering the tree hierarchy, metrics, selection, and connection manifest. |
 | **6. Interactive React Flow Canvas Viewport** (pan, zoom, background grid, canvas navigation) | Yes | Yes | Yes | Implemented in Day 2 in `src/components/tree/TreeCanvas.tsx`. Bounded zoom, pan, floating toolbar, and reset view. |
 | **7. Custom Canvas Node Components** (Root, Rule, Condition, Action with handles and shared config) | Yes | Yes | Yes | Implemented in Day 3 via `CustomNode.tsx` and framework-independent `nodeTypeConfig.ts`. |
-| **8. Node Drag & Drop Palette** (drag new nodes onto canvas with guaranteed unique IDs) | No | No | No | Planned for future days. |
+| **8. Node Drag & Drop Palette** (drag new nodes onto canvas with guaranteed unique IDs) | Yes | Yes | Yes | Implemented in Day 4 via HTML5 drag/drop, screenToFlowPosition, nodeFactory, and auto-selection. |
 | **9. Interactive Connection Creation & Handle Constraints** | No | No | No | Planned for future days. |
 | **10. Relationship Rules Enforcement** (`src/lib/relationshipRules.ts`) | No | No | No | Planned for future days. Do not implement before Day 4. |
 | **11. Cycle Detection & Single-Parent Enforcement** (`src/lib/cycleDetection.ts`) | No | No | No | Planned for future days. |

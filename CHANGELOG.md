@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 4] - 2026-10-06: Node Palette, HTML5 Drag-and-Drop & Centralized Node Creation
+
+### Added
+- **Node Factory & Pure Business Logic (`src/lib/nodeFactory.ts`)**:
+  - `isPolicyNodeType(value)`: Strict runtime type guard validating incoming drag/drop payload without unsafe type casting.
+  - `createDefaultNode(type, position, existingIds)`: Pure node construction factory generating complete, typed node payloads with collision-resistant unique IDs (`node_${type}_${randomUUID}`).
+  - Generic non-regulatory labels (`New Root`, `New Rule`, `New Condition`, `New Action`) preventing hardcoded domain couplings.
+- **Node Palette Component (`src/components/tree/NodePalette.tsx`)**:
+  - Dedicated draggable palette displaying Root, Rule, Condition, and Action items.
+  - Reuses shared `nodeTypeConfig` for labels, descriptions, badges, and styling.
+  - Clear drag affordances (`GripVertical` icon, `cursor-grab active:cursor-grabbing`, `draggable`).
+  - Native HTML5 drag-and-drop integration storing `'application/reactflow'`.
+- **Canvas Drop Handling (`src/components/tree/TreeCanvas.tsx`)**:
+  - Canvas drop listener converting screen coordinates via React Flow's `screenToFlowPosition({ x, y })`.
+  - Position validation checking finite numeric coordinates before mutating graph state.
+  - Centralized creation dispatch via Zustand store `createNode(type, position)`.
+  - Automatic selection of newly created nodes (`selectedNodeId`).
+  - Screen-reader accessible live status announcements (`aria-live="polite"`).
+- **Zustand Store Actions (`src/store/treeStore.ts`)**:
+  - `createNode(type, position)`: Centralized store action ensuring immutable graph updates (`nodes = N + 1`, `edges = E`).
+  - `loadSampleTree()`: Canonical sample loader replacing graph state using deep clones of the canonical template, preventing shared-reference mutation.
+  - Permitted temporary invalid structures (multiple roots, disconnected nodes) by decoupling creation from later validation rules.
+- **Header Action Update (`src/components/tree/TreeHeader.tsx`)**:
+  - Connected "Load Sample Tree" action button to `loadSampleTree()`.
+
+### Tested
+- Created `src/tests/nodeFactoryAndCreation.test.ts` (19 unit tests):
+  - Verified runtime type guard acceptance and rejection.
+  - Verified pure factory output, typed defaults, and collision prevention.
+  - Verified Zustand `createNode` immutable updates and auto-selection.
+  - Verified support for temporary multi-root structures.
+  - Verified canonical sample tree immutability and idempotent restoration.
+  - Verified invalid type and coordinate rejection without graph mutation.
+- Total test suite now passes with 43 unit tests across 3 test suites.
+
 ## [Day 3] - 2026-10-06: Custom Node Components & Shared Node Type Configuration
 
 ### Added

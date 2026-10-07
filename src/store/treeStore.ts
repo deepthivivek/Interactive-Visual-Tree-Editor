@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { TreeNode, TreeEdge, TreeStoreState } from '../types/tree';
+import type { TreeNode, TreeEdge, TreeStoreState, NodeType } from '../types/tree';
+import { createDefaultNode, isPolicyNodeType } from '../lib/nodeFactory';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -294,16 +295,26 @@ export const INITIAL_SAMPLE_EDGES: TreeEdge[] = [
 ];
 
 /**
+ * Canonical deep-clone getters ensuring active graph mutations
+ * do not overwrite or mutate the predefined sample template data.
+ */
+export const getCanonicalSampleNodes = (): TreeNode[] =>
+  JSON.parse(JSON.stringify(INITIAL_SAMPLE_NODES));
+
+export const getCanonicalSampleEdges = (): TreeEdge[] =>
+  JSON.parse(JSON.stringify(INITIAL_SAMPLE_EDGES));
+
+/**
  * Zustand Tree Store.
  *
  * Explicitly separates:
  * 1. Graph / Document State: `nodes` and `edges` (persisted, future Zundo undo target).
  * 2. Transient UI State: `selectedNodeId` (never part of document or undo history).
  */
-export const useTreeStore = create<TreeStoreState>((set) => ({
+export const useTreeStore = create<TreeStoreState>((set, get) => ({
   // Graph / Document State
-  nodes: INITIAL_SAMPLE_NODES,
-  edges: INITIAL_SAMPLE_EDGES,
+  nodes: getCanonicalSampleNodes(),
+  edges: getCanonicalSampleEdges(),
 
   // Transient UI State
   selectedNodeId: null,
@@ -312,10 +323,51 @@ export const useTreeStore = create<TreeStoreState>((set) => ({
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
   setEdges: (edges: TreeEdge[]) => set({ edges }),
   setSelectedNodeId: (nodeId: string | null) => set({ selectedNodeId: nodeId }),
+
+  /**
+   * Centralized Node Creation Action (Day 4).
+   * - Enforces runtime type guard and coordinate validity.
+   * - Utilizes pure `createDefaultNode` factory for collision-resistant unique IDs and complete typed data.
+   * - Immutably updates graph state, preserving all existing nodes and edges.
+   * - Automatically selects the newly created node.
+   */
+  createNode: (type: NodeType, position: { x: number; y: number }) => {
+    if (!isPolicyNodeType(type)) {
+      return null;
+    }
+
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      return null;
+    }
+
+    const { nodes, edges } = get();
+    const existingIds = nodes.map((n) => n.id);
+    const newNode = createDefaultNode(type, position, existingIds);
+
+    set({
+      nodes: [...nodes, newNode],
+      edges: [...edges],
+      selectedNodeId: newNode.id,
+    });
+
+    return newNode;
+  },
+
+  /**
+   * Replaces current graph with the canonical Day 1 sample.
+   * Restores predefined IDs, positions, and edges without shared-reference mutation.
+   */
+  loadSampleTree: () =>
+    set({
+      nodes: getCanonicalSampleNodes(),
+      edges: getCanonicalSampleEdges(),
+      selectedNodeId: null,
+    }),
+
   resetToSampleData: () =>
     set({
-      nodes: INITIAL_SAMPLE_NODES,
-      edges: INITIAL_SAMPLE_EDGES,
+      nodes: getCanonicalSampleNodes(),
+      edges: getCanonicalSampleEdges(),
       selectedNodeId: null,
     }),
 }));

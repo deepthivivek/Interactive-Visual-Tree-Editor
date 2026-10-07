@@ -153,7 +153,44 @@ To prevent hardcoded presentation logic and ensure cross-component reuse, node t
 
 ---
 
-## 6. Directory Structure
+## 6. Node Creation & Drag-and-Drop Architecture (Implemented in Day 4)
+
+### Pure Node Factory (`src/lib/nodeFactory.ts`)
+Node instantiation logic is decoupled from React components and global stores:
+- **`isPolicyNodeType(value)`**: Strict runtime type guard validating incoming drag/drop payload without unsafe type casting.
+- **`createDefaultNode(type, position, existingIds)`**: Pure function constructing complete, typed `TreeNode` records with collision-resistant unique IDs (`node_${type}_${randomUUID}`).
+- **Generic Defaults**: Assigns generic titles (`New Root`, `New Rule`, `New Condition`, `New Action`) without regulatory identifiers (FINRA, SEC, DISC), preserving domain extensibility.
+
+### Drag-and-Drop Pipeline
+```
+NodePalette (HTML5 dragstart: 'application/reactflow')
+    ↓
+Canvas Drop Zone (TreeCanvas: onDragOver & onDrop)
+    ↓
+Runtime Type Guard (isPolicyNodeType)
+    ↓
+Screen-to-Flow Coordinate Conversion (screenToFlowPosition)
+    ↓
+Position Validity Check (Number.isFinite)
+    ↓
+Zustand Action (createNode)
+    ↓
+Pure Node Factory (createDefaultNode)
+    ↓
+Immutable Graph Update (nodes: [...nodes, newNode], edges: [...edges])
+    ↓
+Auto-Selection (selectedNodeId: newNode.id)
+```
+
+### Temporary Invalid Structures Permitted
+Day 4 intentionally decouples node creation from connection and hierarchy validation. The graph may temporarily contain multiple Roots, orphan nodes, or disconnected subtrees without being rejected, allowing natural authoring prior to relationship enforcement in Day 5.
+
+### Canonical Sample Restoration & Immutability
+`loadSampleTree()` uses `structuredClone` / JSON serialization to replace the active graph with the canonical Day 1 template without mutating canonical constants or sharing object references across sessions.
+
+---
+
+## 7. Directory Structure
 
 ```
 /
@@ -169,10 +206,11 @@ To prevent hardcoded presentation logic and ensure cross-component reuse, node t
 │   │       └── page.tsx           # Tree Editor page container rendering TreeWorkspace
 │   ├── components/
 │   │   ├── tree/
-│   │   │   ├── TreeHeader.tsx                 # Header with title and toolbar controls
-│   │   │   ├── NodePaletteSidebar.tsx         # Left sidebar: static node palette
+│   │   │   ├── TreeHeader.tsx                 # Header with title, toolbar controls, and Load Sample Tree
+│   │   │   ├── NodePaletteSidebar.tsx         # Left sidebar hosting navigation and NodePalette
+│   │   │   ├── NodePalette.tsx                # HTML5 draggable node palette
 │   │   │   ├── TreeCanvasArea.tsx             # Center workspace: hierarchical tree canvas preview
-│   │   │   ├── TreeCanvas.tsx                 # React Flow interactive canvas with navigation toolbar
+│   │   │   ├── TreeCanvas.tsx                 # React Flow interactive canvas with drop handling
 │   │   │   ├── CustomNode.tsx                 # Reusable data-driven custom node component
 │   │   │   ├── PropertiesInspectorSidebar.tsx # Right sidebar: read-only inspector / empty state
 │   │   │   ├── TreeWorkspace.tsx              # Three-zone enterprise layout container
@@ -180,14 +218,16 @@ To prevent hardcoded presentation logic and ensure cross-component reuse, node t
 │   │   └── ui/
 │   │       └── badge.tsx          # Reusable type/severity/status badge
 │   ├── lib/
-│   │   └── nodeTypeConfig.ts      # Shared framework-independent node presentation metadata
+│   │   ├── nodeTypeConfig.ts      # Shared framework-independent node presentation metadata
+│   │   └── nodeFactory.ts         # Pure node creation factory and runtime type guard
 │   ├── store/
 │   │   └── treeStore.ts           # Zustand store with document vs transient separation
 │   ├── types/
 │   │   └── tree.ts                # TypeScript strict interfaces and types
 │   └── tests/
-│       ├── treeStore.test.ts      # Unit tests for tree model and state separation
-│       └── nodeTypeConfig.test.ts # Unit tests for shared node presentation configuration
+│       ├── treeStore.test.ts              # Unit tests for tree model and state separation
+│       ├── nodeTypeConfig.test.ts         # Unit tests for shared node presentation configuration
+│       └── nodeFactoryAndCreation.test.ts # Unit tests for factory, creation, and immutability
 ├── vitest.config.mjs              # Vitest runner configuration
 ├── REQUIREMENTS.md                # Requirements traceability matrix
 ├── CHANGELOG.md                   # Chronological development log
@@ -196,7 +236,7 @@ To prevent hardcoded presentation logic and ensure cross-component reuse, node t
 
 ---
 
-## 6. Planned Modules (Strictly Deferred to Future Days)
+## 8. Planned Modules (Strictly Deferred to Future Days)
 
 The following pure-function business logic modules will reside under `src/lib/` and must remain completely decoupled from React components:
 
