@@ -78,6 +78,13 @@ export interface TreeDocument {
 export interface TreeUiState {
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  deleteConfirmation: {
+    nodeId: string;
+    incidentEdgeCount: number;
+    isRoot: boolean;
+  } | null;
+  addChildChoiceOpen: boolean;
+  statusFeedback: string | null;
 }
 
 /**
@@ -91,12 +98,20 @@ export interface TreeStoreState {
   // Transient UI State
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  deleteConfirmation: {
+    nodeId: string;
+    incidentEdgeCount: number;
+    isRoot: boolean;
+  } | null;
+  addChildChoiceOpen: boolean;
+  statusFeedback: string | null;
 
   // Actions
   setNodes: (nodes: TreeNode[]) => void;
   setEdges: (edges: TreeEdge[]) => void;
   setSelectedNodeId: (nodeId: string | null) => void;
   setSelectedEdgeId: (edgeId: string | null) => void;
+  clearSelection: () => void;
   createNode: (type: NodeType, position: { x: number; y: number }) => TreeNode | null;
   addEdgeConnection: (connection: {
     source?: string | null;
@@ -114,6 +129,26 @@ export interface TreeStoreState {
     } | null | undefined
   ) => { ok: boolean; message?: string; reason?: string; edge?: TreeEdge };
   deleteEdge: (edgeId: string) => boolean;
+
+  // Day 6 Node Operations
+  addChild: (
+    parentId: string,
+    childType: NodeType
+  ) => { ok: boolean; newChild?: TreeNode; newEdge?: TreeEdge; message?: string; reason?: string };
+  duplicateNode: (
+    nodeId: string
+  ) => { ok: boolean; duplicatedNode?: TreeNode; message?: string; reason?: string };
+  requestDeleteNode: (nodeId: string) => void;
+  confirmDeleteNode: () => boolean;
+  cancelDeleteNode: () => void;
+  reparentNode: (
+    nodeId: string,
+    newParentId: string | null
+  ) => { ok: boolean; message?: string; reason?: string; noop?: boolean };
+  disconnectNode: (nodeId: string) => boolean;
+  setAddChildChoiceOpen: (open: boolean) => void;
+  setStatusFeedback: (message: string | null) => void;
+
   loadSampleTree: () => void;
   resetToSampleData: () => void;
 }

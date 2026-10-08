@@ -12,9 +12,14 @@ import {
   Trash2,
   GitCommit,
   ArrowDown,
+  Plus,
+  Copy,
+  GitBranch,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { Badge } from '../ui/badge';
+import { getAllowedChildTypes } from '../../lib/relationshipRules';
+import { getValidParentCandidates } from '../../lib/graphOperations';
 
 export const PropertiesInspectorSidebar: React.FC = () => {
   const {
@@ -25,6 +30,10 @@ export const PropertiesInspectorSidebar: React.FC = () => {
     setSelectedNodeId,
     setSelectedEdgeId,
     deleteEdge,
+    addChild,
+    duplicateNode,
+    requestDeleteNode,
+    reparentNode,
   } = useTreeStore();
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
@@ -34,6 +43,11 @@ export const PropertiesInspectorSidebar: React.FC = () => {
 
   const sourceNode = selectedEdge ? nodes.find((n) => n.id === selectedEdge.source) : null;
   const targetNode = selectedEdge ? nodes.find((n) => n.id === selectedEdge.target) : null;
+
+  const allowedChildTypes = selectedNode ? getAllowedChildTypes(selectedNode.type) : [];
+  const currentParentEdge = selectedNode ? edges.find((e) => e.target === selectedNode.id) : null;
+  const currentParentNode = currentParentEdge ? nodes.find((n) => n.id === currentParentEdge.source) : null;
+  const validParentCandidates = selectedNode ? getValidParentCandidates(selectedNode, nodes, edges) : [];
 
   return (
     <aside className="nokey w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 select-none overflow-y-auto">
@@ -182,6 +196,110 @@ export const PropertiesInspectorSidebar: React.FC = () => {
                 </div>
               ) : (
                 <p className="text-[11px] text-slate-400 italic">No metadata tags</p>
+              )}
+            </div>
+
+            {/* Node Operations (Day 6) */}
+            <div className="border border-slate-200/80 rounded-lg p-3 space-y-3 bg-white">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                <span>Node Operations</span>
+              </div>
+
+              {/* 1. Add Child */}
+              <div>
+                <span className="text-[11px] text-slate-500 font-medium block mb-1.5">Add Child</span>
+                {allowedChildTypes.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {allowedChildTypes.map((childType) => (
+                      <button
+                        key={childType}
+                        type="button"
+                        onClick={() => addChild(selectedNode.id, childType)}
+                        className="flex-1 min-w-[110px] flex items-center justify-center gap-1 py-1.5 px-2 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold cursor-pointer transition shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add {childType.charAt(0).toUpperCase() + childType.slice(1)}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-400 italic bg-slate-50 p-2 rounded border border-slate-100">
+                    Action nodes cannot have children.
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Duplicate Node */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => duplicateNode(selectedNode.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium cursor-pointer transition shadow-2xs"
+                >
+                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Duplicate Node</span>
+                </button>
+              </div>
+
+              {/* 3. Delete Node */}
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => requestDeleteNode(selectedNode.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold cursor-pointer transition shadow-2xs"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Node</span>
+                </button>
+                <p className="text-[10px] text-slate-400 text-center mt-1">
+                  Or press <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Delete</kbd> / <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200 text-slate-600">Backspace</kbd>
+                </p>
+              </div>
+            </div>
+
+            {/* Hierarchy & Parent Selector (Day 6 Re-parenting) */}
+            <div className="border border-slate-200/80 rounded-lg p-3 space-y-2.5 bg-white">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                <GitBranch className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Parent Connection</span>
+              </div>
+
+              {selectedNode.type === 'root' ? (
+                <div className="text-[11px] text-slate-400 italic bg-slate-50 p-2 rounded border border-slate-100">
+                  Root nodes cannot have a parent.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>Current Parent:</span>
+                    <span className="font-medium text-slate-800">
+                      {currentParentNode ? currentParentNode.data.label : 'None (Disconnected)'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label htmlFor="parent-selector" className="text-[11px] text-slate-500 font-medium block mb-1">
+                      Re-parent / Disconnect:
+                    </label>
+                    <select
+                      id="parent-selector"
+                      value={currentParentEdge?.source ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        reparentNode(selectedNode.id, val === '' ? null : val);
+                      }}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
+                    >
+                      <option value="">None (Disconnected)</option>
+                      {validParentCandidates.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          [{candidate.type.toUpperCase()}] {candidate.data.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               )}
             </div>
 

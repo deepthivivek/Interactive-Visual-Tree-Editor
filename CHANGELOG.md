@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 6] - 2026-10-08: Node Operations, Re-parenting, Deletion Confirmation & Keyboard Safety
+
+### Added
+- **Centralized Pure Graph Operations (`src/lib/graphOperations.ts`)**:
+  - `executeAddChild`: creates child node, generates unique edge ID (`e-${source}-${target}-${suffix}`), validates connection, and atomically appends both. Supports dependency injection (`createNodeFn`, `createEdgeIdFn`, `validateConnectionFn`) for failure testing in both failure orders.
+  - `executeDuplicateNode`: deep-copies parameters and metadata, retains `ruleId` unchanged, applies (+30px, +30px) position offset, copies 0 incident edges, generates collision-resistant unique node ID, and formats label using duplicate sequence algorithm.
+  - `executeDeleteNode`: atomically deletes target node and removes all incident edges while preserving all other nodes and edges intact (descendants survive as orphans; root deletion allowed).
+  - `executeReparentNode`: replaces incoming parent edge atomically with a new unique edge ID conforming to project conventions; supports disconnecting (`newParentId === null`); returns `noop: true` when re-parenting to the same parent or disconnecting an already disconnected node; rejects re-parenting Root nodes.
+  - `getValidParentCandidates`: resolves and filters candidates by excluding self, actions, invalid relationships, and cycles; sorts by Type (Root -> Rule -> Condition -> Action), then label, then ID.
+  - `generateUniqueEdgeId`: pure edge ID generator adhering to `e-${source}-${target}-${uniqueSuffix}`.
+- **Pure Label Utilities (`src/lib/labelUtils.ts`)**:
+  - `extractBaseLabel`: strips `(copy)` and `(copy N)` suffixes.
+  - `generateDuplicateLabel`: generates collision-free duplicate labels ("X (copy)", "X (copy 2)", etc.) skipping existing labels in the graph.
+- **Pure Keyboard Safety Resolver (`src/lib/keyboardSafety.ts`)**:
+  - `resolveKeyboardAction`: pure evaluation of Delete/Backspace and Escape keys.
+  - Repeated-key protection: Delete/Backspace returns `'ignore'` when deletion confirmation modal is open.
+  - Protected form controls: Delete/Backspace/Escape ignored inside `<input>`, `<textarea>`, `<select>`, `contenteditable`, and `.nokey` containers.
+  - Escape priority: confirmation modal cancel -> add-child choice close -> clear selection.
+- **Status Message Timer (`src/lib/statusTimer.ts`)**:
+  - `StatusTimerManager`: schedules auto-dismiss timer (4.5s default), cancels previous timers on replacement, prevents stale timer callbacks from clearing newer messages, and safely disposes upon unmount.
+- **Zustand Store Actions (`src/store/treeStore.ts`)**:
+  - `addChild(parentId, childType)`: executes pure add-child, selects newly created child, and emits feedback.
+  - `duplicateNode(nodeId)`: executes pure duplicate-node, selects duplicate, and emits feedback.
+  - `requestDeleteNode(nodeId)`: deletes isolated non-root nodes immediately; opens `deleteConfirmation` for connected nodes or root nodes.
+  - `confirmDeleteNode()`: deletes node pending confirmation with atomic incident edge removal.
+  - `cancelDeleteNode()`: cancels pending deletion modal with zero graph mutations.
+  - `reparentNode(nodeId, newParentId)`: atomically updates parent connection with no-op awareness.
+  - `disconnectNode(nodeId)`: helper disconnecting incoming parent edge.
+- **UI Integration**:
+  - `PropertiesInspectorSidebar.tsx`: added Node Operations section (Add Child for allowed child types, Duplicate Node, Delete Node) and Parent Connection selector dropdown.
+  - `TreeCanvas.tsx`: added accessible `deleteConfirmation` alertdialog modal, transient feedback banner powered by `StatusTimerManager`, and connected `resolveKeyboardAction` to window keydown listener.
+  - React Flow `onNodesChange`: filtered out `remove` changes while preserving node position changes.
+
+### Tested
+- Created `src/tests/nodeOperationsDay6.test.ts` (35 unit tests):
+  - Add Child execution, layout placement, and failure injection atomicity across both failure orders.
+  - Duplicate Node deep cloning, position offset, zero copied edges, and label collision skipping.
+  - Delete Node atomic removal of incident edges and preservation of orphan children.
+  - Re-parenting, disconnection, no-op cases, edge ID conventions, and repeated re-parenting.
+  - Parent candidate resolution and multi-criteria sorting.
+  - Connected-node confirmation, immediate isolated-node deletion, and cancellation.
+  - Keyboard resolver, repeated-key protection, Escape priority, and input target guards.
+  - `StatusTimerManager` timer scheduling, replacement, stale timer prevention, and disposal.
+  - Multiple Root creation preservation and unique IDs after deletion and repeated creation.
+  - Selection behavior and graph-slice atomicity.
+  - React Flow change filtering (remove changes ignored, position changes applied).
+- Test baseline expanded from 95 tests (across 5 test suites) to 130 tests (across 6 test suites).
+
 ## [Day 5 Part 2] - 2026-10-07: Connection Hardening, Edge Reconnection & Safety
 
 ### Added

@@ -49,3 +49,85 @@ export function isKeyboardEventTargetProtected(
 
   return false;
 }
+
+/**
+ * Supported semantic actions resolved by pure keyboard safety handler (Day 6 Task K).
+ */
+export type KeyboardAction = 'delete-node' | 'delete-edge' | 'escape' | 'ignore';
+
+export interface KeyboardActionTarget {
+  tagName?: string;
+  isContentEditable?: boolean;
+  insideNoKey?: boolean;
+}
+
+export interface KeyboardActionContext {
+  key: string;
+  target?: KeyboardActionTarget | null;
+  selection: {
+    selectedNodeId: string | null;
+    selectedEdgeId: string | null;
+  };
+  confirmationOpen: boolean;
+}
+
+/**
+ * Pure keyboard safety resolver implementing Task K rules without DOM dependency.
+ *
+ * Rules:
+ * - Delete/Backspace:
+ *   - Target is input/textarea/select/content-editable/no-key -> 'ignore'
+ *   - Confirmation open -> 'ignore'
+ *   - Selected node -> 'delete-node'
+ *   - Selected edge -> 'delete-edge'
+ *   - No selection -> 'ignore'
+ * - Escape:
+ *   - Target is input/textarea/select -> 'ignore' (allows control to cancel text)
+ *   - Otherwise -> 'escape' (signals UI to follow priority: confirmation -> add-child -> selection)
+ */
+export function resolveKeyboardAction(ctx: KeyboardActionContext): KeyboardAction {
+  const { key, target, selection, confirmationOpen } = ctx;
+
+  const isDeleteKey = key === 'Delete' || key === 'Backspace';
+  const isEscapeKey = key === 'Escape';
+
+  if (!isDeleteKey && !isEscapeKey) {
+    return 'ignore';
+  }
+
+  const tagName = target?.tagName?.toLowerCase();
+  const isTextControl =
+    tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+  const isContentEditable = Boolean(target?.isContentEditable);
+  const isInsideNoKey = Boolean(target?.insideNoKey);
+
+  if (isEscapeKey) {
+    if (isTextControl) {
+      return 'ignore';
+    }
+    return 'escape';
+  }
+
+  if (isDeleteKey) {
+    if (isTextControl || isContentEditable || isInsideNoKey) {
+      return 'ignore';
+    }
+
+    if (confirmationOpen) {
+      return 'ignore';
+    }
+
+    if (selection.selectedNodeId) {
+      return 'delete-node';
+    }
+
+    if (selection.selectedEdgeId) {
+      return 'delete-edge';
+    }
+
+    return 'ignore';
+  }
+
+  return 'ignore';
+}
+

@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import type { TreeNode, TreeEdge, TreeStoreState, NodeType } from '../types/tree';
 import { createDefaultNode, isPolicyNodeType } from '../lib/nodeFactory';
 import { validateConnection } from '../lib/connectionValidation';
+import {
+  executeAddChild,
+  executeDuplicateNode,
+  executeDeleteNode,
+  executeReparentNode,
+  getNodeIncidentEdges,
+} from '../lib/graphOperations';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -320,6 +327,9 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
   // Transient UI State
   selectedNodeId: null,
   selectedEdgeId: null,
+  deleteConfirmation: null,
+  addChildChoiceOpen: false,
+  statusFeedback: null,
 
   // Actions
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
@@ -329,8 +339,25 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
       selectedEdgeId && edges.some((e) => e.id === selectedEdgeId) ? selectedEdgeId : null;
     set({ edges, selectedEdgeId: nextSelectedEdgeId });
   },
-  setSelectedNodeId: (nodeId: string | null) => set({ selectedNodeId: nodeId }),
-  setSelectedEdgeId: (edgeId: string | null) => set({ selectedEdgeId: edgeId }),
+  setSelectedNodeId: (nodeId: string | null) =>
+    set({
+      selectedNodeId: nodeId,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+    }),
+  setSelectedEdgeId: (edgeId: string | null) =>
+    set({
+      selectedEdgeId: edgeId,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+    }),
+  clearSelection: () =>
+    set({
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+    }),
 
   /**
    * Centralized Node Creation Action (Day 4).
@@ -516,6 +543,196 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
   },
 
   /**
+   * Day 6: Add Child Action.
+   * Atomically creates and appends the child node and directional edge.
+   * Sets newly created child as selected, closes choice, and emits feedback.
+   */
+  addChild: (parentId: string, childType: NodeType) => {
+    const { nodes, edges } = get();
+    const result = executeAddChild(parentId, childType, nodes, edges);
+
+    if (!result.ok) {
+      set({ statusFeedback: result.message ?? 'Failed to add child.' });
+      return {
+        ok: false,
+        reason: result.reason,
+        message: result.message,
+      };
+    }
+
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      selectedNodeId: result.data!.newChild.id,
+      selectedEdgeId: null,
+      addChildChoiceOpen: false,
+      statusFeedback: `Added ${childType} child.`,
+    });
+
+    return {
+      ok: true,
+      newChild: result.data!.newChild,
+      newEdge: result.data!.newEdge,
+      message: `Added ${childType} child.`,
+    };
+  },
+
+  /**
+   * Day 6: Duplicate Node Action.
+   * Deep-copies parameters and metadata, increments label copy suffix,
+   * generates collision-safe ID, copies zero edges, and selects duplicate.
+   */
+  duplicateNode: (nodeId: string) => {
+    const { nodes, edges } = get();
+    const result = executeDuplicateNode(nodeId, nodes, edges);
+
+    if (!result.ok) {
+      set({ statusFeedback: result.message ?? 'Failed to duplicate node.' });
+      return {
+        ok: false,
+        reason: result.reason,
+        message: result.message,
+      };
+    }
+
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      selectedNodeId: result.data!.duplicatedNode.id,
+      selectedEdgeId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      statusFeedback: `Duplicated node: ${result.data!.duplicatedNode.data.label}`,
+    });
+
+    return {
+      ok: true,
+      duplicatedNode: result.data!.duplicatedNode,
+      message: `Duplicated node: ${result.data!.duplicatedNode.data.label}`,
+    };
+  },
+
+  /**
+   * Day 6: Request Delete Node Action.
+   * If non-Root and zero incident edges, deletes immediately without confirmation.
+   * Otherwise, sets deleteConfirmation state for user review.
+   */
+  requestDeleteNode: (nodeId: string) => {
+    const { nodes, edges } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return;
+
+    const incidentEdges = getNodeIncidentEdges(nodeId, edges);
+
+    // Isolated non-Root node: delete immediately without confirmation
+    if (targetNode.type !== 'root' && incidentEdges.length === 0) {
+      const result = executeDeleteNode(nodeId, nodes, edges);
+      set({
+        nodes: result.nodes,
+        edges: result.edges,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        deleteConfirmation: null,
+        addChildChoiceOpen: false,
+        statusFeedback: 'Node deleted.',
+      });
+      return;
+    }
+
+    // Connected node or Root: requires user confirmation
+    set({
+      deleteConfirmation: {
+        nodeId,
+        incidentEdgeCount: incidentEdges.length,
+        isRoot: targetNode.type === 'root',
+      },
+    });
+  },
+
+  /**
+   * Day 6: Confirm Delete Node Action.
+   * Confirms deletion of the node pending confirmation, removing incident edges atomically.
+   */
+  confirmDeleteNode: () => {
+    const { deleteConfirmation, nodes, edges } = get();
+    if (!deleteConfirmation) return false;
+
+    const result = executeDeleteNode(deleteConfirmation.nodeId, nodes, edges);
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      statusFeedback: 'Node deleted.',
+    });
+    return true;
+  },
+
+  /**
+   * Day 6: Cancel Delete Node Action.
+   * Cancels the pending deletion prompt with zero graph mutations.
+   */
+  cancelDeleteNode: () => {
+    set({ deleteConfirmation: null });
+  },
+
+  /**
+   * Day 6: Re-parent Node Action.
+   * Atomically changes parent connection or disconnects child.
+   */
+  reparentNode: (nodeId: string, newParentId: string | null) => {
+    const { nodes, edges } = get();
+    const result = executeReparentNode(nodeId, newParentId, nodes, edges);
+
+    if (result.noop) {
+      return { ok: true, noop: true };
+    }
+
+    if (!result.ok) {
+      set({ statusFeedback: result.message ?? 'Failed to re-parent node.' });
+      return {
+        ok: false,
+        reason: result.reason,
+        message: result.message,
+      };
+    }
+
+    const feedback =
+      newParentId === null
+        ? 'Disconnected node from parent.'
+        : 'Node re-parented successfully.';
+
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      statusFeedback: feedback,
+    });
+
+    return {
+      ok: true,
+      noop: false,
+      message: feedback,
+    };
+  },
+
+  /**
+   * Day 6: Disconnect Node Action.
+   * Disconnects node from its incoming parent edge.
+   */
+  disconnectNode: (nodeId: string) => {
+    const res = get().reparentNode(nodeId, null);
+    return res.ok && !res.noop;
+  },
+
+  /**
+   * Day 6: Transient Add Child Choice & Feedback State Handlers
+   */
+  setAddChildChoiceOpen: (open: boolean) => set({ addChildChoiceOpen: open }),
+  setStatusFeedback: (message: string | null) => set({ statusFeedback: message }),
+
+  /**
    * Replaces current graph with the canonical Day 1 sample.
    * Restores predefined IDs, positions, and edges without shared-reference mutation.
    */
@@ -525,6 +742,9 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
       edges: getCanonicalSampleEdges(),
       selectedNodeId: null,
       selectedEdgeId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      statusFeedback: null,
     }),
 
   resetToSampleData: () =>
@@ -533,5 +753,8 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
       edges: getCanonicalSampleEdges(),
       selectedNodeId: null,
       selectedEdgeId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      statusFeedback: null,
     }),
 }));

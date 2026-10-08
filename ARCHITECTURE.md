@@ -304,7 +304,10 @@ User drops connection on target handle:
 │   │   ├── relationshipRules.ts       # Relationship rules policy single source of truth
 │   │   ├── cycleDetection.ts          # Pure graph cycle detection algorithms
 │   │   ├── connectionValidation.ts    # Unified connection validation pipeline
-│   │   └── keyboardSafety.ts          # Pure keyboard event target protection guard
+│   │   ├── keyboardSafety.ts          # Pure keyboard event target protection guard and resolver
+│   │   ├── graphOperations.ts         # Pure centralized graph operations (add child, duplicate, delete, reparent)
+│   │   ├── labelUtils.ts              # Pure label deduplication and sequencing utility
+│   │   └── statusTimer.ts             # Status message auto-dismiss timer manager
 │   ├── store/
 │   │   └── treeStore.ts           # Zustand store with document vs transient separation
 │   ├── types/
@@ -313,7 +316,9 @@ User drops connection on target handle:
 │       ├── treeStore.test.ts              # Unit tests for tree model and state separation
 │       ├── nodeTypeConfig.test.ts         # Unit tests for shared node presentation configuration
 │       ├── nodeFactoryAndCreation.test.ts # Unit tests for factory, creation, and immutability
-│       └── connectionValidation.test.ts   # Unit tests for relationships, cycles, and connections
+│       ├── connectionValidation.test.ts   # Unit tests for relationships, cycles, and connections
+│       ├── reconnectionAndEdgeSafety.test.ts # Unit tests for safe edge reconnection, deletion, and keyboard guard
+│       └── nodeOperationsDay6.test.ts     # Unit tests for Day 6 node operations, reparenting, and timers
 ├── vitest.config.mjs              # Vitest runner configuration
 ├── REQUIREMENTS.md                # Requirements traceability matrix
 ├── CHANGELOG.md                   # Chronological development log

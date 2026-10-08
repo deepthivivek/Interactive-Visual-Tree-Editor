@@ -31,12 +31,14 @@ import {
   FolderTree,
   AlertCircle,
   X,
+  Trash2,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { isPolicyNodeType } from '../../lib/nodeFactory';
 import { getNodeTypeConfig } from '../../lib/nodeTypeConfig';
 import { validateConnection } from '../../lib/connectionValidation';
-import { isKeyboardEventTargetProtected } from '../../lib/keyboardSafety';
+import { isKeyboardEventTargetProtected, resolveKeyboardAction } from '../../lib/keyboardSafety';
+import { StatusTimerManager } from '../../lib/statusTimer';
 import type { TreeNode, TreeEdge } from '../../types/tree';
 
 import { CustomNode } from './CustomNode';
@@ -59,13 +61,22 @@ const TreeCanvasInner: React.FC = () => {
     edges,
     selectedNodeId,
     selectedEdgeId,
+    deleteConfirmation,
+    addChildChoiceOpen,
+    statusFeedback,
     setSelectedNodeId,
     setSelectedEdgeId,
+    clearSelection,
     setNodes,
     createNode,
     addEdgeConnection,
     reconnectEdgeConnection,
     deleteEdge,
+    requestDeleteNode,
+    confirmDeleteNode,
+    cancelDeleteNode,
+    setAddChildChoiceOpen,
+    setStatusFeedback,
   } = useTreeStore();
   const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition } = useReactFlow();
 
@@ -85,15 +96,30 @@ const TreeCanvasInner: React.FC = () => {
   // Ref tracking edge currently undergoing reconnection to support ignoreEdgeId during live validation
   const reconnectingEdgeIdRef = useRef<string | null>(null);
 
-  // Auto-dismiss transient connection rejection message after 4.5 seconds
+  // Status message timer manager (Day 6 Task J)
+  const statusTimerRef = useRef<StatusTimerManager | null>(null);
+
   useEffect(() => {
-    if (connectionFeedback) {
-      const timer = setTimeout(() => {
+    statusTimerRef.current = new StatusTimerManager({
+      durationMs: 4500,
+      onClear: () => {
+        useTreeStore.getState().setStatusFeedback(null);
         setConnectionFeedback(null);
-      }, 4500);
-      return () => clearTimeout(timer);
+      },
+    });
+
+    return () => {
+      statusTimerRef.current?.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (statusFeedback || connectionFeedback) {
+      statusTimerRef.current?.schedule();
+    } else {
+      statusTimerRef.current?.cancel();
     }
-  }, [connectionFeedback]);
+  }, [statusFeedback, connectionFeedback]);
 
   // Sync selectedNodeId with React Flow selected state
   const flowNodes = useMemo(() => {
@@ -177,34 +203,54 @@ const TreeCanvasInner: React.FC = () => {
     setSelectedEdgeId(null);
   }, [setSelectedNodeId, setSelectedEdgeId]);
 
-  // Global keyboard listener enforcing edge deletion and node protection with input shielding
+  // Global keyboard listener enforcing Day 6 keyboard actions with input shielding & Escape priority
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isKeyboardEventTargetProtected(event.target)) {
-        return;
-      }
+      const state = useTreeStore.getState();
+      const target = event.target as HTMLElement | null;
 
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        const currentSelectedEdgeId = useTreeStore.getState().selectedEdgeId;
-        const currentSelectedNodeId = useTreeStore.getState().selectedNodeId;
+      const action = resolveKeyboardAction({
+        key: event.key,
+        target: {
+          tagName: target?.tagName,
+          isContentEditable: Boolean(target?.isContentEditable),
+          insideNoKey: Boolean(target?.closest?.('.nokey')),
+        },
+        selection: {
+          selectedNodeId: state.selectedNodeId,
+          selectedEdgeId: state.selectedEdgeId,
+        },
+        confirmationOpen: Boolean(state.deleteConfirmation),
+      });
 
-        if (currentSelectedEdgeId) {
-          event.preventDefault();
-          const deleted = deleteEdge(currentSelectedEdgeId);
+      if (action === 'delete-node') {
+        event.preventDefault();
+        if (state.selectedNodeId) {
+          state.requestDeleteNode(state.selectedNodeId);
+        }
+      } else if (action === 'delete-edge') {
+        event.preventDefault();
+        if (state.selectedEdgeId) {
+          const deleted = state.deleteEdge(state.selectedEdgeId);
           if (deleted) {
             setAriaFeedback('Edge deleted.');
           }
-        } else if (currentSelectedNodeId) {
-          // Node Deletion Protection (Day 5 requirement):
-          // Prevent browser back navigation on Backspace, but DO NOT delete selected node!
-          event.preventDefault();
+        }
+      } else if (action === 'escape') {
+        event.preventDefault();
+        if (state.deleteConfirmation) {
+          state.cancelDeleteNode();
+        } else if (state.addChildChoiceOpen) {
+          state.setAddChildChoiceOpen(false);
+        } else if (state.selectedNodeId || state.selectedEdgeId) {
+          state.clearSelection();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge]);
+  }, []);
 
   // Fit View handler with safety check
   const handleFitView = useCallback(() => {
@@ -401,25 +447,88 @@ const TreeCanvasInner: React.FC = () => {
         {ariaFeedback}
       </div>
 
-      {/* Transient Connection Feedback Banner (Day 5 - Visible feedback on rejected attempts) */}
-      {connectionFeedback && (
+      {/* Transient Status & Connection Feedback Banner (Day 6) */}
+      {(statusFeedback || connectionFeedback) && (
         <div
           role="status"
           aria-live="polite"
-          className="absolute top-3 left-1/2 -translate-x-1/2 z-30 max-w-lg bg-amber-50/95 backdrop-blur-xs border border-amber-300/80 text-amber-900 px-3.5 py-2 rounded-lg shadow-sm text-xs font-medium flex items-center gap-2 select-none transition-all animate-in fade-in slide-in-from-top-2"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-30 max-w-lg bg-slate-900/90 backdrop-blur-xs text-white px-3.5 py-2 rounded-lg shadow-md text-xs font-medium flex items-center gap-2 select-none transition-all animate-in fade-in slide-in-from-top-2"
         >
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
-          <span className="truncate">{connectionFeedback}</span>
+          <AlertCircle className="w-4 h-4 text-blue-400 shrink-0" aria-hidden="true" />
+          <span className="truncate">{statusFeedback || connectionFeedback}</span>
           <button
             type="button"
-            onClick={() => setConnectionFeedback(null)}
-            className="ml-auto text-amber-600 hover:text-amber-800 p-0.5 rounded cursor-pointer transition-colors"
+            onClick={() => {
+              setStatusFeedback(null);
+              setConnectionFeedback(null);
+            }}
+            className="ml-auto text-slate-400 hover:text-white p-0.5 rounded cursor-pointer transition-colors"
             aria-label="Dismiss feedback"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Day 6) */}
+      {deleteConfirmation && (() => {
+        const nodeToDelete = nodes.find((n) => n.id === deleteConfirmation.nodeId);
+        return (
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            aria-describedby="delete-dialog-description"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 select-none"
+          >
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 border border-slate-200 animate-in fade-in zoom-in-95">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 id="delete-dialog-title" className="text-sm font-semibold text-slate-900">
+                    {deleteConfirmation.isRoot ? 'Delete Root Node?' : 'Delete Connected Node?'}
+                  </h3>
+                  <p id="delete-dialog-description" className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                    {deleteConfirmation.isRoot ? (
+                      <>
+                        You are about to delete <strong className="text-slate-800">{nodeToDelete?.data.label ?? 'Root'}</strong>.
+                        {deleteConfirmation.incidentEdgeCount > 0 && (
+                          <> This will also remove {deleteConfirmation.incidentEdgeCount} incident connection(s). Child nodes will remain as orphans.</>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        Deleting <strong className="text-slate-800">{nodeToDelete?.data.label ?? 'this node'}</strong> will also remove{' '}
+                        <strong className="text-slate-800">{deleteConfirmation.incidentEdgeCount} incident connection(s)</strong>.
+                        Descendant nodes will remain in the canvas as disconnected nodes.
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={cancelDeleteNode}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteNode}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md shadow-xs transition cursor-pointer"
+                >
+                  Confirm Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* React Flow Graph Canvas */}
       <ReactFlow
