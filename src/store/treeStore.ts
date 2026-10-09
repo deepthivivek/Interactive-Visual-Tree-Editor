@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import type { StateCreator, UseBoundStore, StoreApi } from 'zustand';
+import { temporal } from 'zundo';
+import type { TemporalState } from 'zundo';
 import type { TreeNode, TreeEdge, TreeStoreState, NodeType } from '../types/tree';
 import { createDefaultNode, isPolicyNodeType } from '../lib/nodeFactory';
 import { validateConnection } from '../lib/connectionValidation';
@@ -6,9 +9,21 @@ import {
   executeAddChild,
   executeDuplicateNode,
   executeDeleteNode,
+  executeDeleteSubtree,
   executeReparentNode,
   getNodeIncidentEdges,
+  hasNodesMoved,
+  areGraphStatesEqual,
 } from '../lib/graphOperations';
+import {
+  updateNodeDataPure,
+  setParameterPure,
+  deleteParameterPure,
+  addTagPure,
+  removeTagPure,
+  setMetadataPure,
+  deleteMetadataPure,
+} from '../lib/nodePropertyOperations';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -319,7 +334,21 @@ export const getCanonicalSampleEdges = (): TreeEdge[] =>
  * 1. Graph / Document State: `nodes` and `edges` (persisted, future Zundo undo target).
  * 2. Transient UI State: `selectedNodeId` (never part of document or undo history).
  */
-export const useTreeStore = create<TreeStoreState>((set, get) => ({
+let dragBaselineNodes: TreeNode[] | null = null;
+
+export type TreeTemporalState = TemporalState<{ nodes: TreeNode[]; edges: TreeEdge[] }> & {
+  _handleSet?: (
+    pastState: { nodes: TreeNode[]; edges: TreeEdge[] },
+    replace: boolean | undefined,
+    currentState: { nodes: TreeNode[]; edges: TreeEdge[] },
+    deltaState?: unknown
+  ) => void;
+};
+export type TreeStore = UseBoundStore<StoreApi<TreeStoreState> & { temporal: StoreApi<TreeTemporalState> }>;
+
+export const useTreeStore: TreeStore = create<TreeStoreState>()(
+  temporal(
+    (set, get): TreeStoreState => ({
   // Graph / Document State
   nodes: getCanonicalSampleNodes(),
   edges: getCanonicalSampleEdges(),
@@ -472,6 +501,19 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
         ok: false,
         reason: 'missing-node',
         message: 'The edge to reconnect does not exist in the current graph.',
+      };
+    }
+
+    // No-op check: if reconnecting to exact same source, target, and handles, return existing
+    if (
+      existingEdge.source === newConnection.source &&
+      existingEdge.target === newConnection.target &&
+      (existingEdge.sourceHandle ?? null) === (newConnection.sourceHandle ?? null) &&
+      (existingEdge.targetHandle ?? null) === (newConnection.targetHandle ?? null)
+    ) {
+      return {
+        ok: true,
+        edge: existingEdge,
       };
     }
 
@@ -733,21 +775,382 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
   setStatusFeedback: (message: string | null) => set({ statusFeedback: message }),
 
   /**
-   * Replaces current graph with the canonical Day 1 sample.
-   * Restores predefined IDs, positions, and edges without shared-reference mutation.
+   * Day 7: Update Node Data Action.
+   * Immutably updates the target node's data payload and triggers real-time reactivity.
    */
-  loadSampleTree: () =>
-    set({
-      nodes: getCanonicalSampleNodes(),
-      edges: getCanonicalSampleEdges(),
-      selectedNodeId: null,
-      selectedEdgeId: null,
-      deleteConfirmation: null,
-      addChildChoiceOpen: false,
-      statusFeedback: null,
-    }),
+  updateNodeData: (nodeId: string, updates: Partial<TreeNode['data']>) => {
+    const { nodes } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return false;
 
-  resetToSampleData: () =>
+    // No-op check: if nothing changed, create zero history entries
+    let hasChanged = false;
+    for (const [key, val] of Object.entries(updates)) {
+      if (targetNode.data[key] !== val) {
+        hasChanged = true;
+        break;
+      }
+    }
+    if (!hasChanged) {
+      return true;
+    }
+
+    const updatedNode = updateNodeDataPure(targetNode, updates);
+    const updatedNodes = nodes.map((n) => (n.id === nodeId ? updatedNode : n));
+
+    set({ nodes: updatedNodes });
+    return true;
+  },
+
+  /**
+   * Day 7: Update / Add / Rename Node Parameter Action.
+   */
+  updateNodeParameter: (
+    nodeId: string,
+    key: string,
+    value: string | number | boolean,
+    oldKey?: string
+  ) => {
+    const { nodes } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return false;
+
+    const trimmedKey = key.trim();
+    if (!trimmedKey) return false;
+
+    const currentParams = targetNode.data.parameters ?? {};
+    if (!oldKey && currentParams[trimmedKey] === value) {
+      return true; // No-op: 0 entries
+    }
+
+    const nextParams = setParameterPure(targetNode.data.parameters, key, value, oldKey);
+    const updatedNode = updateNodeDataPure(targetNode, { parameters: nextParams });
+    const updatedNodes = nodes.map((n) => (n.id === nodeId ? updatedNode : n));
+
+    set({ nodes: updatedNodes });
+    return true;
+  },
+
+  /**
+   * Day 7: Delete Node Parameter Action.
+   */
+  deleteNodeParameter: (nodeId: string, key: string) => {
+    const { nodes } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return false;
+
+    if (!targetNode.data.parameters || !(key in targetNode.data.parameters)) {
+      return false; // Not present: 0 entries
+    }
+
+    const nextParams = deleteParameterPure(targetNode.data.parameters, key);
+    const updatedNode = updateNodeDataPure(targetNode, { parameters: nextParams });
+    const updatedNodes = nodes.map((n) => (n.id === nodeId ? updatedNode : n));
+
+    set({ nodes: updatedNodes });
+    return true;
+  },
+
+  /**
+   * Day 7: Add Tag Action.
+   */
+  addNodeTag: (nodeId: string, tag: string) => {
+    const { nodes } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return false;
+
+    const trimmed = tag.trim();
+    if (!trimmed || targetNode.data.tags?.includes(trimmed)) {
+      return true; // No-op: 0 entries
+    }
+
+    const nextTags = addTagPure(targetNode.data.tags, tag);
+    const updatedNode = updateNodeDataPure(targetNode, { tags: nextTags });
+    const updatedNodes = nodes.map((n) => (n.id === nodeId ? updatedNode : n));
+
+    set({ nodes: updatedNodes });
+    return true;
+  },
+
+  /**
+   * Day 7: Remove Tag Action.
+   */
+  removeNodeTag: (nodeId: string, tag: string) => {
+    const { nodes } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return false;
+
+    if (!targetNode.data.tags?.includes(tag)) {
+      return false; // Tag not present: 0 entries
+    }
+
+    const nextTags = removeTagPure(targetNode.data.tags, tag);
+    const updatedNode = updateNodeDataPure(targetNode, { tags: nextTags });
+    const updatedNodes = nodes.map((n) => (n.id === nodeId ? updatedNode : n));
+
+    set({ nodes: updatedNodes });
+    return true;
+  },
+
+  /**
+   * Day 7: Update / Add / Rename Node Metadata Tag Action.
+   */
+  updateNodeMetadata: (
+    nodeId: string,
+    key: string,
+    value: string | number | boolean,
+    oldKey?: string
+  ) => {
+    const { nodes } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return false;
+
+    const trimmedKey = key.trim();
+    if (!trimmedKey) return false;
+
+    const currentMeta = targetNode.data.metadata ?? {};
+    if (!oldKey && currentMeta[trimmedKey] === value) {
+      return true; // No-op: 0 entries
+    }
+
+    const nextMeta = setMetadataPure(targetNode.data.metadata, key, value, oldKey);
+    const updatedNode = updateNodeDataPure(targetNode, { metadata: nextMeta });
+    const updatedNodes = nodes.map((n) => (n.id === nodeId ? updatedNode : n));
+
+    set({ nodes: updatedNodes });
+    return true;
+  },
+
+  /**
+   * Day 7: Delete Node Metadata Tag Action.
+   */
+  deleteNodeMetadata: (nodeId: string, key: string) => {
+    const { nodes } = get();
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return false;
+
+    if (!targetNode.data.metadata || !(key in targetNode.data.metadata)) {
+      return false; // Not present: 0 entries
+    }
+
+    const nextMeta = deleteMetadataPure(targetNode.data.metadata, key);
+    const updatedNode = updateNodeDataPure(targetNode, { metadata: nextMeta });
+    const updatedNodes = nodes.map((n) => (n.id === nodeId ? updatedNode : n));
+
+    set({ nodes: updatedNodes });
+    return true;
+  },
+
+  // ==========================================================================
+  // Day 8: Drag Transactions, Batch & History Operations
+  // ==========================================================================
+
+  /**
+   * Day 8: Node Drag Start Transaction.
+   * Captures baseline positions and pauses temporal tracking so intermediate
+   * pointer moves do not flood history.
+   */
+  startNodeDrag: () => {
+    if (dragBaselineNodes !== null) {
+      get().stopNodeDrag();
+    }
+    dragBaselineNodes = get().nodes.map((n) => ({
+      ...n,
+      position: { ...n.position },
+    }));
+    useTreeStore.temporal.getState().pause();
+  },
+
+  /**
+   * Day 8: Node Drag Stop Transaction.
+   * Resumes temporal tracking, compares final positions against baseline,
+   * and commits exactly ONE history entry if any node moved.
+   */
+  stopNodeDrag: () => {
+    if (dragBaselineNodes === null) {
+      return; // Safe against drag stop without start
+    }
+    useTreeStore.temporal.getState().resume();
+    const currentNodes = get().nodes;
+    const currentEdges = get().edges;
+    const baseline = dragBaselineNodes;
+    dragBaselineNodes = null;
+
+    if (hasNodesMoved(baseline, currentNodes)) {
+      useTreeStore.temporal.getState()._handleSet?.(
+        { nodes: baseline, edges: currentEdges },
+        undefined,
+        { nodes: currentNodes, edges: currentEdges }
+      );
+    }
+  },
+
+  /**
+   * Day 8: Node Drag Cancellation.
+   * Restores original node positions, resumes temporal tracking,
+   * and creates zero history entries.
+   */
+  cancelNodeDrag: () => {
+    if (dragBaselineNodes === null) {
+      return;
+    }
+    const baseline = dragBaselineNodes;
+    dragBaselineNodes = null;
+    set({ nodes: baseline });
+    useTreeStore.temporal.getState().resume();
+  },
+
+  /**
+   * Day 8: Apply Valid Batch Graph Updates.
+   * Atomically sets nodes and edges in exactly 1 history entry,
+   * or rejects with 0 entries if validation fails or graph is unchanged.
+   */
+  applyGraphBatch: (batch: { nodes?: TreeNode[]; edges?: TreeEdge[] }) => {
+    const currentNodes = get().nodes;
+    const currentEdges = get().edges;
+    const nextNodes = batch.nodes ?? currentNodes;
+    const nextEdges = batch.edges ?? currentEdges;
+
+    // Validation: edge references must exist in target nodes
+    const nodeIds = new Set(nextNodes.map((n) => n.id));
+    for (const edge of nextEdges) {
+      if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
+        return false; // Invalid batch
+      }
+    }
+
+    // Unchanged check
+    const nodesUnchanged =
+      nextNodes.length === currentNodes.length &&
+      nextNodes.every((n, i) => n === currentNodes[i]);
+    const edgesUnchanged =
+      nextEdges.length === currentEdges.length &&
+      nextEdges.every((e, i) => e === currentEdges[i]);
+
+    if (nodesUnchanged && edgesUnchanged) {
+      return false; // No-op: 0 entries
+    }
+
+    set({ nodes: nextNodes, edges: nextEdges });
+    get().reconcileSelection();
+    return true;
+  },
+
+  /**
+   * Day 8: Delete Subtree Action.
+   * Atomically removes the target node, all downstream descendants, and all incident edges.
+   */
+  deleteSubtree: (nodeId: string) => {
+    const { nodes, edges } = get();
+    const result = executeDeleteSubtree(nodeId, nodes, edges);
+    if (!result.ok) {
+      return false;
+    }
+
+    const { selectedNodeId, selectedEdgeId } = get();
+    const deletedNodeIds = new Set(result.data!.deletedNodes.map((n) => n.id));
+    const nextSelectedNodeId =
+      selectedNodeId && deletedNodeIds.has(selectedNodeId) ? null : selectedNodeId;
+    const remainingEdgeIds = new Set(result.edges.map((e) => e.id));
+    const nextSelectedEdgeId =
+      selectedEdgeId && !remainingEdgeIds.has(selectedEdgeId) ? null : selectedEdgeId;
+
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      selectedNodeId: nextSelectedNodeId,
+      selectedEdgeId: nextSelectedEdgeId,
+      deleteConfirmation: null,
+      statusFeedback: `Deleted subtree (${result.data!.deletedNodes.length} nodes).`,
+    });
+    return true;
+  },
+
+  /**
+   * Day 8: Selection Reconciliation.
+   * Ensures selectedNodeId and selectedEdgeId point to elements that actually exist
+   * in the current graph. Transient UI state: creates ZERO history entries.
+   */
+  reconcileSelection: () => {
+    const { nodes, edges, selectedNodeId, selectedEdgeId, deleteConfirmation } = get();
+    let changed = false;
+    let nextNodeId = selectedNodeId;
+    let nextEdgeId = selectedEdgeId;
+    let nextDeleteConfirm = deleteConfirmation;
+
+    if (selectedNodeId && !nodes.some((n) => n.id === selectedNodeId)) {
+      nextNodeId = null;
+      changed = true;
+    }
+    if (selectedEdgeId && !edges.some((e) => e.id === selectedEdgeId)) {
+      nextEdgeId = null;
+      changed = true;
+    }
+    if (deleteConfirmation && !nodes.some((n) => n.id === deleteConfirmation.nodeId)) {
+      nextDeleteConfirm = null;
+      changed = true;
+    }
+
+    if (changed) {
+      set({
+        selectedNodeId: nextNodeId,
+        selectedEdgeId: nextEdgeId,
+        deleteConfirmation: nextDeleteConfirm,
+      });
+    }
+  },
+
+  /**
+   * Day 8: Undo Action.
+   * Restores previous graph snapshot, reconciles selection, and displays feedback.
+   */
+  undo: (steps = 1) => {
+    const temporal = useTreeStore.temporal.getState();
+    if (temporal.pastStates.length > 0) {
+      temporal.undo(steps);
+      get().reconcileSelection();
+      set({ statusFeedback: 'Undid last graph action' });
+    }
+  },
+
+  /**
+   * Day 8: Redo Action.
+   * Restores future graph snapshot, reconciles selection, and displays feedback.
+   */
+  redo: (steps = 1) => {
+    const temporal = useTreeStore.temporal.getState();
+    if (temporal.futureStates.length > 0) {
+      temporal.redo(steps);
+      get().reconcileSelection();
+      set({ statusFeedback: 'Redid last graph action' });
+    }
+  },
+
+  canUndo: () => useTreeStore.temporal.getState().pastStates.length > 0,
+  canRedo: () => useTreeStore.temporal.getState().futureStates.length > 0,
+  getHistoryDepth: () => ({
+    past: useTreeStore.temporal.getState().pastStates.length,
+    future: useTreeStore.temporal.getState().futureStates.length,
+  }),
+
+  /**
+   * Replaces current graph with the canonical Day 1 sample.
+   * Clears temporal history and establishes new baseline with 0 past and 0 future states.
+   */
+  loadSampleTree: () => {
+    set({
+      nodes: getCanonicalSampleNodes(),
+      edges: getCanonicalSampleEdges(),
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      statusFeedback: 'Sample compliance template loaded.',
+    });
+    useTreeStore.temporal.getState().clear();
+  },
+
+  resetToSampleData: () => {
     set({
       nodes: getCanonicalSampleNodes(),
       edges: getCanonicalSampleEdges(),
@@ -756,5 +1159,15 @@ export const useTreeStore = create<TreeStoreState>((set, get) => ({
       deleteConfirmation: null,
       addChildChoiceOpen: false,
       statusFeedback: null,
+    });
+    useTreeStore.temporal.getState().clear();
+  },
     }),
-}));
+    {
+      limit: 100,
+      partialize: (state) => ({ nodes: state.nodes, edges: state.edges }),
+      equality: (pastState, currentState) => areGraphStatesEqual(pastState, currentState),
+    }
+  )
+);
+

@@ -27,7 +27,9 @@ describe('Day 5 Part 2 — Reconnection Safety & ignoreEdgeId', () => {
         edges
       );
       expect(withoutIgnore.ok).toBe(false);
-      expect(withoutIgnore.reason).toBe('duplicate-edge');
+      if (!withoutIgnore.ok) {
+        expect(withoutIgnore.reason).toBe('duplicate-edge');
+      }
 
       // With ignoreEdgeId, old edge is ignored and connection is recognized as valid
       const withIgnore = validateConnection(
@@ -53,7 +55,9 @@ describe('Day 5 Part 2 — Reconnection Safety & ignoreEdgeId', () => {
         edges
       );
       expect(withoutIgnore.ok).toBe(false);
-      expect(withoutIgnore.reason).toBe('has-parent');
+      if (!withoutIgnore.ok) {
+        expect(withoutIgnore.reason).toBe('has-parent');
+      }
 
       // With ignoreEdgeId = 'e-finra-cond': target node's old parent edge is ignored
       const withIgnore = validateConnection(

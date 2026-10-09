@@ -43,6 +43,8 @@ export const Badge: React.FC<BadgeProps> = ({
     colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
   } else if (status === 'draft') {
     colorClasses = 'bg-zinc-100 text-zinc-600 border-zinc-200';
+  } else if (status === 'archived') {
+    colorClasses = 'bg-stone-100 text-stone-600 border-stone-200';
   }
 
   return (

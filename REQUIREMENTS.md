@@ -16,7 +16,7 @@
 | **11b. Safe Edge Reconnection (`reconnectEdgeConnection`, `ignoreEdgeId`)** | Yes | Yes | Yes | Implemented in Day 5 Part 2: pre-validation replacement, ignoreEdgeId, atomic updates, zero mutations on failure. |
 | **11c. Edge Deletion & Node Deletion Protection** (Delete/Backspace edge removal, input safety guard, node protection) | Yes | Yes | Yes | Implemented in Day 5 Part 2: deletes selected edge only; preserves nodes and selectedNodeId; protected keyboard input. |
 | **11d. Node Operations, Re-parenting & Deletion Safety** (Add child, duplicate node, re-parenting, deletion confirmation, status timers, keyboard safety) | Yes | Yes | Yes | Implemented in Day 6: executeAddChild, executeDuplicateNode, executeDeleteNode, executeReparentNode, StatusTimerManager, resolveKeyboardAction. |
-| **12. Node Editing & Properties Inspector Panel** (live field editing, parameter dictionary, metadata) | No | No | No | Planned for Day 7. |
+| **12. Node Editing & Properties Inspector Panel** (live field editing, parameter dictionary, metadata, tags, live sync) | Yes | Yes | Yes | Implemented in Day 7: pure property operations, live Zustand sync, parameters & metadata key-value editors, tag manager, classification selectors. |
 | **13. Node & Subtree Deletion** (delete single node or cascade subtree) | No | No | No | Planned for future days. |
 | **14. Undo / Redo History via Zundo** (partialized strictly to nodes and edges; zero history for selection) | No | No | No | Planned for Day 8 onward. |
 | **15. Subtree Collapse / Expand** (`collapsed` data flag; hide descendants without graph deletion) | No | No | No | Planned for future days. |

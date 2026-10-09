@@ -14,7 +14,7 @@ export type NodeSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 /**
  * Node lifecycle and governance status.
  */
-export type NodeStatus = 'draft' | 'active' | 'deprecated' | 'in_review';
+export type NodeStatus = 'draft' | 'active' | 'deprecated' | 'in_review' | 'archived';
 
 /**
  * Typed parameters dictionary for rule execution or evaluation.
@@ -29,7 +29,7 @@ export type NodeMetadata = Record<string, string | number | boolean>;
 /**
  * Core node data payload interface.
  * Matches all required fields: label, ruleId, description, severity,
- * parameters, metadata, status, and collapsed.
+ * parameters, metadata, tags, status, and collapsed.
  */
 export interface TreeNodeData extends Record<string, unknown> {
   label: string;
@@ -38,6 +38,7 @@ export interface TreeNodeData extends Record<string, unknown> {
   severity?: NodeSeverity;
   parameters?: NodeParameters;
   metadata?: NodeMetadata;
+  tags?: string[];
   status?: NodeStatus;
   collapsed?: boolean;
   [key: string]: unknown;
@@ -148,6 +149,38 @@ export interface TreeStoreState {
   disconnectNode: (nodeId: string) => boolean;
   setAddChildChoiceOpen: (open: boolean) => void;
   setStatusFeedback: (message: string | null) => void;
+
+  // Day 7 Node Property Editing Actions
+  updateNodeData: (nodeId: string, updates: Partial<TreeNodeData>) => boolean;
+  updateNodeParameter: (
+    nodeId: string,
+    key: string,
+    value: string | number | boolean,
+    oldKey?: string
+  ) => boolean;
+  deleteNodeParameter: (nodeId: string, key: string) => boolean;
+  addNodeTag: (nodeId: string, tag: string) => boolean;
+  removeNodeTag: (nodeId: string, tag: string) => boolean;
+  updateNodeMetadata: (
+    nodeId: string,
+    key: string,
+    value: string | number | boolean,
+    oldKey?: string
+  ) => boolean;
+  deleteNodeMetadata: (nodeId: string, key: string) => boolean;
+
+  // Day 8 History, Drag Transactions & Batch Operations
+  startNodeDrag: () => void;
+  stopNodeDrag: () => void;
+  cancelNodeDrag: () => void;
+  applyGraphBatch: (batch: { nodes?: TreeNode[]; edges?: TreeEdge[] }) => boolean;
+  deleteSubtree: (nodeId: string) => boolean;
+  reconcileSelection: () => void;
+  undo: (steps?: number) => void;
+  redo: (steps?: number) => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  getHistoryDepth: () => { past: number; future: number };
 
   loadSampleTree: () => void;
   resetToSampleData: () => void;

@@ -37,7 +37,11 @@ import { useTreeStore } from '../../store/treeStore';
 import { isPolicyNodeType } from '../../lib/nodeFactory';
 import { getNodeTypeConfig } from '../../lib/nodeTypeConfig';
 import { validateConnection } from '../../lib/connectionValidation';
-import { isKeyboardEventTargetProtected, resolveKeyboardAction } from '../../lib/keyboardSafety';
+import {
+  isKeyboardEventTargetProtected,
+  resolveKeyboardAction,
+  resolveUndoRedoAction,
+} from '../../lib/keyboardSafety';
 import { StatusTimerManager } from '../../lib/statusTimer';
 import type { TreeNode, TreeEdge } from '../../types/tree';
 
@@ -77,6 +81,8 @@ const TreeCanvasInner: React.FC = () => {
     cancelDeleteNode,
     setAddChildChoiceOpen,
     setStatusFeedback,
+    startNodeDrag,
+    stopNodeDrag,
   } = useTreeStore();
   const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition } = useReactFlow();
 
@@ -203,11 +209,39 @@ const TreeCanvasInner: React.FC = () => {
     setSelectedEdgeId(null);
   }, [setSelectedNodeId, setSelectedEdgeId]);
 
-  // Global keyboard listener enforcing Day 6 keyboard actions with input shielding & Escape priority
+  // Day 8 Node Drag Transaction Handlers
+  const handleNodeDragStart = useCallback(() => {
+    startNodeDrag();
+  }, [startNodeDrag]);
+
+  const handleNodeDragStop = useCallback(() => {
+    stopNodeDrag();
+  }, [stopNodeDrag]);
+
+  // Global keyboard listener enforcing Day 6 keyboard actions & Day 8 Undo/Redo with input shielding
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const state = useTreeStore.getState();
       const target = event.target as HTMLElement | null;
+
+      // Day 8 Undo / Redo keyboard shortcuts with native input editing protection
+      const undoRedoAction = resolveUndoRedoAction({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        target,
+      });
+
+      if (undoRedoAction === 'undo') {
+        event.preventDefault();
+        state.undo();
+        return;
+      } else if (undoRedoAction === 'redo') {
+        event.preventDefault();
+        state.redo();
+        return;
+      }
 
       const action = resolveKeyboardAction({
         key: event.key,
@@ -537,6 +571,8 @@ const TreeCanvasInner: React.FC = () => {
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStart={handleNodeDragStart}
+        onNodeDragStop={handleNodeDragStop}
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}

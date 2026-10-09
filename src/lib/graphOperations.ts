@@ -356,6 +356,145 @@ export function executeDeleteNode(
   };
 }
 
+export interface DeleteSubtreeResultData {
+  deletedNodes: TreeNode[];
+  removedEdges: TreeEdge[];
+}
+
+/**
+ * Executes pure subtree deletion.
+ * Atomically removes the target node, all its hierarchical descendants,
+ * and all incident edges connecting any node in the deleted subtree.
+ */
+export function executeDeleteSubtree(
+  rootId: string,
+  nodes: readonly TreeNode[],
+  edges: readonly TreeEdge[]
+): GraphOperationResult<DeleteSubtreeResultData> {
+  const targetNode = nodes.find((n) => n.id === rootId);
+  if (!targetNode) {
+    return {
+      ok: false,
+      nodes: nodes as TreeNode[],
+      edges: edges as TreeEdge[],
+      reason: 'missing-node',
+      message: 'Subtree root node does not exist.',
+    };
+  }
+
+  // Collect root and all downstream descendants using BFS
+  const toDeleteIds = new Set<string>([rootId]);
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    for (const edge of edges) {
+      if (edge.source === currentId && !toDeleteIds.has(edge.target)) {
+        toDeleteIds.add(edge.target);
+        queue.push(edge.target);
+      }
+    }
+  }
+
+  const deletedNodes = nodes.filter((n) => toDeleteIds.has(n.id));
+  const nextNodes = nodes.filter((n) => !toDeleteIds.has(n.id));
+  const removedEdges = edges.filter(
+    (e) => toDeleteIds.has(e.source) || toDeleteIds.has(e.target)
+  );
+  const nextEdges = edges.filter(
+    (e) => !toDeleteIds.has(e.source) && !toDeleteIds.has(e.target)
+  );
+
+  return {
+    ok: true,
+    nodes: nextNodes,
+    edges: nextEdges,
+    data: {
+      deletedNodes,
+      removedEdges,
+    },
+  };
+}
+
+/**
+ * Checks if any node in current list has moved position compared to baseline.
+ */
+export function hasNodesMoved(
+  baseline: readonly TreeNode[],
+  current: readonly TreeNode[]
+): boolean {
+  if (baseline.length !== current.length) return true;
+  const currentMap = new Map<string, { x: number; y: number }>();
+  for (const n of current) {
+    currentMap.set(n.id, n.position);
+  }
+  return baseline.some((n) => {
+    const pos = currentMap.get(n.id);
+    return !pos || pos.x !== n.position.x || pos.y !== n.position.y;
+  });
+}
+
+/**
+ * Compares two node data payloads for semantic equivalence.
+ */
+export function areNodeDataEqual(
+  a: TreeNode['data'] | undefined,
+  b: TreeNode['data'] | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.label !== b.label) return false;
+  if (a.ruleId !== b.ruleId) return false;
+  if (a.description !== b.description) return false;
+  if (a.severity !== b.severity) return false;
+  if (a.status !== b.status) return false;
+  if (a.collapsed !== b.collapsed) return false;
+  if (JSON.stringify(a.parameters ?? {}) !== JSON.stringify(b.parameters ?? {})) return false;
+  if (JSON.stringify(a.metadata ?? {}) !== JSON.stringify(b.metadata ?? {})) return false;
+  if (JSON.stringify(a.tags ?? []) !== JSON.stringify(b.tags ?? [])) return false;
+  return true;
+}
+
+/**
+ * Compares two graph document states ({ nodes, edges }) for semantic equivalence.
+ *
+ * Excludes transient React Flow internal rendering properties:
+ * - measured: { width, height }
+ * - width, height
+ * - selected
+ * - dragging, resizing
+ *
+ * Considers two states EQUAL if and only if:
+ * - All nodes have matching IDs, types, positions (x, y), and semantic node data.
+ * - All edges have matching IDs, sources, targets, handles, and relationshipType.
+ */
+export function areGraphStatesEqual(
+  a: { nodes: readonly TreeNode[]; edges: readonly TreeEdge[] },
+  b: { nodes: readonly TreeNode[]; edges: readonly TreeEdge[] }
+): boolean {
+  if (a.nodes === b.nodes && a.edges === b.edges) return true;
+  if (a.nodes.length !== b.nodes.length) return false;
+  if (a.edges.length !== b.edges.length) return false;
+
+  for (let i = 0; i < a.nodes.length; i++) {
+    const na = a.nodes[i];
+    const nb = b.nodes[i];
+    if (na.id !== nb.id || na.type !== nb.type) return false;
+    if (na.position.x !== nb.position.x || na.position.y !== nb.position.y) return false;
+    if (!areNodeDataEqual(na.data, nb.data)) return false;
+  }
+
+  for (let i = 0; i < a.edges.length; i++) {
+    const ea = a.edges[i];
+    const eb = b.edges[i];
+    if (ea.id !== eb.id || ea.source !== eb.source || ea.target !== eb.target) return false;
+    if ((ea.sourceHandle ?? null) !== (eb.sourceHandle ?? null)) return false;
+    if ((ea.targetHandle ?? null) !== (eb.targetHandle ?? null)) return false;
+    if (ea.data?.relationshipType !== eb.data?.relationshipType) return false;
+  }
+
+  return true;
+}
+
 // ============================================================================
 // 4. RE-PARENT NODE & DISCONNECT
 // ============================================================================

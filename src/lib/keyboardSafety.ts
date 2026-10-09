@@ -131,3 +131,52 @@ export function resolveKeyboardAction(ctx: KeyboardActionContext): KeyboardActio
   return 'ignore';
 }
 
+/**
+ * Supported Undo/Redo actions resolved by pure keyboard safety handler (Day 8).
+ */
+export type UndoRedoAction = 'undo' | 'redo' | 'ignore';
+
+export interface UndoRedoActionContext {
+  key: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  shiftKey?: boolean;
+  target?: EventTarget | ElementLike | null;
+}
+
+/**
+ * Pure keyboard resolver for Undo and Redo shortcuts (Day 8).
+ *
+ * Rules:
+ * - Target is inside input/textarea/select/content-editable/no-key -> 'ignore'
+ *   (preserves native browser input undo/redo while editing text)
+ * - Ctrl+Z / Cmd+Z (without shift) -> 'undo'
+ * - Ctrl+Shift+Z / Cmd+Shift+Z -> 'redo'
+ * - Ctrl+Y / Cmd+Y -> 'redo'
+ * - Any other combination -> 'ignore'
+ */
+export function resolveUndoRedoAction(ctx: UndoRedoActionContext): UndoRedoAction {
+  if (isKeyboardEventTargetProtected(ctx.target)) {
+    return 'ignore';
+  }
+
+  const isModifier = Boolean(ctx.ctrlKey || ctx.metaKey);
+  if (!isModifier) {
+    return 'ignore';
+  }
+
+  const keyLower = ctx.key.toLowerCase();
+  if (keyLower === 'z') {
+    if (ctx.shiftKey) {
+      return 'redo';
+    }
+    return 'undo';
+  }
+
+  if (keyLower === 'y') {
+    return 'redo';
+  }
+
+  return 'ignore';
+}
+

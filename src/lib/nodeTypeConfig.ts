@@ -283,6 +283,15 @@ export const NODE_STATUS_CONFIGS: Record<NodeStatus, NodeStatusConfig> = {
     badgeBorder: 'border-rose-200',
     hex: '#f43f5e',
   },
+  archived: {
+    status: 'archived',
+    label: 'Archived',
+    dotColor: 'bg-zinc-400',
+    textColor: 'text-zinc-600',
+    badgeBg: 'bg-zinc-100',
+    badgeBorder: 'border-zinc-200',
+    hex: '#71717a',
+  },
 };
 
 export const UNKNOWN_NODE_STATUS_CONFIG: NodeStatusConfig = {

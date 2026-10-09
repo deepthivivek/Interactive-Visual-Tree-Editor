@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 7] - 2026-10-08: Right-Side Properties Inspector & Live Property Editing
+
+### Added
+- **Pure Node Property Operations (`src/lib/nodePropertyOperations.ts`)**:
+  - `updateNodeDataPure`: immutably merges partial node data updates (`label`, `ruleId`, `description`, `severity`, `status`, etc.).
+  - `setParameterPure`: pure helper to add, update, or rename key-value parameters.
+  - `deleteParameterPure`: pure helper to delete parameters immutably.
+  - `setMetadataPure`: pure helper to add, update, or rename audit metadata entries.
+  - `deleteMetadataPure`: pure helper to delete audit metadata entries.
+  - `addTagPure`: pure helper appending string tags without duplicates.
+  - `removeTagPure`: pure helper removing tags immutably.
+  - `VALID_SEVERITIES` and `VALID_STATUSES` constant arrays.
+- **Node Status & Data Model Expansion (`src/types/tree.ts`, `src/lib/nodeTypeConfig.ts`, `src/components/ui/badge.tsx`)**:
+  - Expanded `NodeStatus` to support `'archived'` alongside `'draft' | 'active' | 'deprecated' | 'in_review'`.
+  - Added `tags?: string[]` to `TreeNodeData`.
+  - Added `'archived'` status configuration to `NODE_STATUS_CONFIGS` and badge styling.
+- **Zustand Store Actions (`src/store/treeStore.ts`)**:
+  - `updateNodeData(nodeId, updates)`: immutably updates node data and triggers real-time reactivity in the graph canvas.
+  - `updateNodeParameter(nodeId, key, value, oldKey)`: synchronizes node parameters dictionary.
+  - `deleteNodeParameter(nodeId, key)`: deletes node parameter.
+  - `addNodeTag(nodeId, tag)`: adds tag to node.
+  - `removeNodeTag(nodeId, tag)`: removes tag from node.
+  - `updateNodeMetadata(nodeId, key, value, oldKey)`: synchronizes audit metadata dictionary.
+  - `deleteNodeMetadata(nodeId, key)`: deletes metadata entry.
+- **Production Properties Inspector UI (`src/components/tree/PropertiesInspectorSidebar.tsx`)**:
+  - Slide-over right panel with real-time bidirectional synchronization with canvas nodes.
+  - Node ID header with one-click copy button and confirmation feedback.
+  - Core properties section: required Label input, monospace Rule Identifier, and resizable Description textarea.
+  - Governance & Classification section: Severity dropdown (`info`, `low`, `medium`, `high`, `critical`) with colored badge preview; Status dropdown (`active`, `draft`, `in_review`, `deprecated`, `archived`) with status dot indicator.
+  - Rule Parameters dictionary editor: key/value inputs with rename support, type conversion, delete buttons, and inline add form with duplicate key validation.
+  - Tags management: removable chip pills and add tag input.
+  - Audit Metadata editor: key/value inputs with inline rename, value updates, delete buttons, and add form.
+  - Preserved Day 6 Node Operations (Add Child, Duplicate Node, Delete Node with confirmation) and Re-parenting dropdown.
+  - Preserved Day 5/6 Connection Inspector for selected edges and empty state stats.
+  - Guaranteed keyboard safety inside inputs (`.nokey` container shielding canvas shortcuts).
+
+### Tested
+- Created `src/tests/nodePropertiesDay7.test.ts` (12 unit tests):
+  - Verified `updateNodeDataPure` immutability and field preservation.
+  - Verified `setParameterPure` add, update, rename, and empty-key defense.
+  - Verified `deleteParameterPure` immutable deletion.
+  - Verified `setMetadataPure` and `deleteMetadataPure` audit metadata operations.
+  - Verified `addTagPure` (duplicate prevention, trimming, whitespace handling) and `removeTagPure`.
+  - Verified `updateNodeData` real-time store synchronization and invalid ID defense.
+  - Verified parameter and metadata store actions (add, update, rename, delete).
+  - Verified tags store actions (add, deduplicate, remove).
+  - Verified seamless `'archived'` status support across store and badges.
+- Test baseline expanded from 130 tests across 6 suites to 142 passing tests across 7 test suites.
+- Verified 0 ESLint errors/warnings and successful Next.js production build.
+
 ## [Day 6] - 2026-10-08: Node Operations, Re-parenting, Deletion Confirmation & Keyboard Safety
 
 ### Added

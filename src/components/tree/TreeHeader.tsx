@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import {
   Network,
   RotateCcw,
@@ -9,11 +9,24 @@ import {
   FileCode,
   Sun,
   User,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/treeStore';
 
 export const TreeHeader: React.FC = () => {
-  const { nodes, loadSampleTree } = useTreeStore();
+  const { loadSampleTree, undo, redo } = useTreeStore();
+
+  const pastCount = useSyncExternalStore(
+    useTreeStore.temporal.subscribe,
+    () => useTreeStore.temporal.getState().pastStates.length,
+    () => 0
+  );
+  const futureCount = useSyncExternalStore(
+    useTreeStore.temporal.subscribe,
+    () => useTreeStore.temporal.getState().futureStates.length,
+    () => 0
+  );
 
   return (
     <header className="nokey h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 select-none z-20">
@@ -37,8 +50,60 @@ export const TreeHeader: React.FC = () => {
         </div>
       </div>
 
-      {/* Right: Reserved Action Placeholders & Working Reset */}
+      {/* Right: Reserved Action Placeholders, Undo/Redo & Working Reset */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Undo Action (Day 8) */}
+        <button
+          type="button"
+          disabled={pastCount === 0}
+          onClick={() => undo()}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition shadow-2xs ${
+            pastCount > 0
+              ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 cursor-pointer'
+              : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed opacity-60'
+          }`}
+          title={
+            pastCount > 0
+              ? `Undo (${pastCount} action${pastCount > 1 ? 's' : ''} available) [Ctrl+Z / ⌘Z]`
+              : 'Undo (No actions to undo) [Ctrl+Z / ⌘Z]'
+          }
+          aria-label={`Undo (${pastCount} actions available)`}
+        >
+          <Undo2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Undo</span>
+          {pastCount > 0 && (
+            <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1 rounded">
+              {pastCount}
+            </span>
+          )}
+        </button>
+
+        {/* Redo Action (Day 8) */}
+        <button
+          type="button"
+          disabled={futureCount === 0}
+          onClick={() => redo()}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition shadow-2xs ${
+            futureCount > 0
+              ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 cursor-pointer'
+              : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed opacity-60'
+          }`}
+          title={
+            futureCount > 0
+              ? `Redo (${futureCount} action${futureCount > 1 ? 's' : ''} available) [Ctrl+Shift+Z / ⌘Shift+Z]`
+              : 'Redo (No actions to redo) [Ctrl+Shift+Z / ⌘Shift+Z]'
+          }
+          aria-label={`Redo (${futureCount} actions available)`}
+        >
+          <Redo2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Redo</span>
+          {futureCount > 0 && (
+            <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1 rounded">
+              {futureCount}
+            </span>
+          )}
+        </button>
+
         {/* Search Placeholder */}
         <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-md cursor-not-allowed opacity-75">
           <Search className="w-3.5 h-3.5 text-slate-400" />
