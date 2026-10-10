@@ -1,6 +1,12 @@
 import React from 'react';
+import { ReactFlowProvider } from '@xyflow/react';
 import { TreeWorkspace } from '../../components/tree/TreeWorkspace';
 
 export default function TreeEditorPage() {
-  return <TreeWorkspace />;
+  return (
+    <ReactFlowProvider>
+      <TreeWorkspace />
+    </ReactFlowProvider>
+  );
 }
+

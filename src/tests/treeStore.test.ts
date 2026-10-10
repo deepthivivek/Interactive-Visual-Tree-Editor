@@ -174,21 +174,27 @@ describe('Tree Foundation - Model & Store Integrity (Day 1)', () => {
       expect(useTreeStore.getState().edges).toHaveLength(INITIAL_SAMPLE_EDGES.length);
     });
 
-    it('preserves all nodes when node removal change events are blocked (Day 2 deletion guard)', () => {
-      const initialNodes = useTreeStore.getState().nodes;
-      // Simulate React Flow changes containing an accidental 'remove' action
-      const mockChanges = [
-        { type: 'remove', id: 'rule-finra-2210' },
-        { type: 'position', id: 'rule-sec-17a-4', position: { x: 500, y: 220 } },
-      ];
+    it('repeated selection of the same node leaves selection state unchanged and creates 0 history entries', () => {
+      // Baseline history length
+      const initialHistoryPast = useTreeStore.temporal.getState().pastStates.length;
 
-      // Day 2 guard filters out 'remove' operations
-      const safeChanges = mockChanges.filter((c) => c.type !== 'remove');
-      expect(safeChanges).toHaveLength(1);
-      expect(safeChanges[0].type).toBe('position');
+      // Select node
+      useTreeStore.getState().setSelectedNodeId('rule-finra-2210');
+      expect(useTreeStore.getState().selectedNodeId).toBe('rule-finra-2210');
 
-      // Verify original nodes remain intact
-      expect(initialNodes.find((n) => n.id === 'rule-finra-2210')).toBeDefined();
+      // Repeated selection of the same node
+      useTreeStore.getState().setSelectedNodeId('rule-finra-2210');
+      expect(useTreeStore.getState().selectedNodeId).toBe('rule-finra-2210');
+
+      // Set and restart focus pulse
+      useTreeStore.getState().setFocusPulseNodeId('rule-finra-2210');
+      expect(useTreeStore.getState().focusPulseNodeId).toBe('rule-finra-2210');
+      useTreeStore.getState().setFocusPulseNodeId(null);
+      useTreeStore.getState().setFocusPulseNodeId('rule-finra-2210');
+
+      // Temporal history should not have recorded any history entries for transient selection or pulse
+      const finalHistoryPast = useTreeStore.temporal.getState().pastStates.length;
+      expect(finalHistoryPast).toBe(initialHistoryPast);
     });
   });
 });

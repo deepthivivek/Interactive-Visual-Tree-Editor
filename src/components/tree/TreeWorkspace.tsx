@@ -1,15 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TreeHeader } from './TreeHeader';
 import { NodePaletteSidebar } from './NodePaletteSidebar';
 import { TreeCanvasArea } from './TreeCanvasArea';
 import { PropertiesInspectorSidebar } from './PropertiesInspectorSidebar';
 import { PanelLeft, PanelRight } from 'lucide-react';
+import { useTreeStore } from '../../store/treeStore';
 
 export const TreeWorkspace: React.FC = () => {
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const selectedNodeId = useTreeStore((state) => state.selectedNodeId);
+
+  // Automatically open mobile inspector when a node is selected (e.g. from search)
+  useEffect(() => {
+    if (selectedNodeId) {
+      const timer = setTimeout(() => {
+        setMobileInspectorOpen(true);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedNodeId]);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-white text-slate-900 font-sans">

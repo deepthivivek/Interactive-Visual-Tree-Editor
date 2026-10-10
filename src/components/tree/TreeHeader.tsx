@@ -13,6 +13,7 @@ import {
   Redo2,
 } from 'lucide-react';
 import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/treeStore';
+import { SearchBox } from './SearchBox';
 
 export const TreeHeader: React.FC = () => {
   const { loadSampleTree, undo, redo } = useTreeStore();
@@ -104,14 +105,8 @@ export const TreeHeader: React.FC = () => {
           )}
         </button>
 
-        {/* Search Placeholder */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-md cursor-not-allowed opacity-75">
-          <Search className="w-3.5 h-3.5 text-slate-400" />
-          <span>Search rules...</span>
-          <kbd className="text-[10px] bg-slate-200/70 text-slate-500 px-1 py-0.2 rounded font-mono">
-            ⌘K
-          </kbd>
-        </div>
+        {/* Advanced Search Box (Day 9) */}
+        <SearchBox />
 
         {/* Validate Action Placeholder */}
         <button

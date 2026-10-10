@@ -106,6 +106,9 @@ export interface TreeStoreState {
   } | null;
   addChildChoiceOpen: boolean;
   statusFeedback: string | null;
+  focusPulseNodeId: string | null;
+  searchQuery: string;
+  matchingNodeIds: Set<string>;
 
   // Actions
   setNodes: (nodes: TreeNode[]) => void;
@@ -113,6 +116,8 @@ export interface TreeStoreState {
   setSelectedNodeId: (nodeId: string | null) => void;
   setSelectedEdgeId: (edgeId: string | null) => void;
   clearSelection: () => void;
+  setFocusPulseNodeId: (id: string | null) => void;
+  setSearchQueryAndMatches: (query: string, matches: Set<string>) => void;
   createNode: (type: NodeType, position: { x: number; y: number }) => TreeNode | null;
   addEdgeConnection: (connection: {
     source?: string | null;

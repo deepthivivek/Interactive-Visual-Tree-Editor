@@ -359,6 +359,9 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
   deleteConfirmation: null,
   addChildChoiceOpen: false,
   statusFeedback: null,
+  focusPulseNodeId: null,
+  searchQuery: '',
+  matchingNodeIds: new Set<string>(),
 
   // Actions
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
@@ -387,6 +390,9 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       deleteConfirmation: null,
       addChildChoiceOpen: false,
     }),
+  setFocusPulseNodeId: (id: string | null) => set({ focusPulseNodeId: id }),
+  setSearchQueryAndMatches: (query: string, matches: Set<string>) =>
+    set({ searchQuery: query, matchingNodeIds: matches }),
 
   /**
    * Centralized Node Creation Action (Day 4).
@@ -1145,6 +1151,8 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       selectedEdgeId: null,
       deleteConfirmation: null,
       addChildChoiceOpen: false,
+      searchQuery: '',
+      matchingNodeIds: new Set<string>(),
       statusFeedback: 'Sample compliance template loaded.',
     });
     useTreeStore.temporal.getState().clear();
@@ -1158,6 +1166,8 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       selectedEdgeId: null,
       deleteConfirmation: null,
       addChildChoiceOpen: false,
+      searchQuery: '',
+      matchingNodeIds: new Set<string>(),
       statusFeedback: null,
     });
     useTreeStore.temporal.getState().clear();

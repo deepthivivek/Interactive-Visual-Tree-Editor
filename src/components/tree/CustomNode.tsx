@@ -16,6 +16,7 @@ import {
   type NodeIconId,
 } from '../../lib/nodeTypeConfig';
 import type { TreeNodeData } from '../../types/tree';
+import { useTreeStore } from '../../store/treeStore';
 
 /**
  * UI mapping from serializable icon identifiers to Lucide React icon components.
@@ -41,11 +42,17 @@ const ICON_MAP: Record<NodeIconId, LucideIcon> = {
  * - Non-interactive handles (`isConnectable={false}`) preventing premature connection creation
  * - Accessible truncation with title attribute and screen-reader context
  */
-export const CustomNode: React.FC<NodeProps> = memo(({ type, data, selected }) => {
+export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected }) => {
   const nodeData = data as TreeNodeData;
   const label = typeof nodeData?.label === 'string' ? nodeData.label : 'Untitled Node';
   const ruleId = typeof nodeData?.ruleId === 'string' ? nodeData.ruleId : undefined;
   const status = typeof nodeData?.status === 'string' ? nodeData.status : undefined;
+
+  const searchQuery = useTreeStore((state) => state.searchQuery);
+  const isMatched = useTreeStore((state) => state.matchingNodeIds.has(id));
+  const isFocusPulse = useTreeStore((state) => state.focusPulseNodeId === id);
+  const hasMatches = useTreeStore((state) => state.matchingNodeIds.size > 0);
+  const isDimmed = searchQuery.trim().length > 0 && hasMatches && !isMatched;
 
   // Resolve configuration from single source of truth
   const nodeType = type || (typeof nodeData?.type === 'string' ? nodeData.type : 'unknown');
@@ -55,6 +62,17 @@ export const CustomNode: React.FC<NodeProps> = memo(({ type, data, selected }) =
   // Map icon component safely
   const IconComponent = ICON_MAP[typeConfig.iconId] || CircleHelp;
 
+  let borderAndRingClass = `${typeConfig.styling.cardBorder} ${typeConfig.styling.cardBorderHover} hover:shadow-xs`;
+  if (isFocusPulse) {
+    borderAndRingClass = `border-blue-500 ring-4 ring-blue-400/80 shadow-md transition-all`;
+  } else if (selected) {
+    borderAndRingClass = `${typeConfig.styling.cardBorderSelected} ${typeConfig.styling.cardRingSelected} shadow-xs`;
+  } else if (isMatched) {
+    borderAndRingClass = `border-blue-400 ring-2 ring-blue-300 shadow-xs`;
+  }
+
+  const dimClass = isDimmed ? 'opacity-50 transition-opacity' : '';
+
   return (
     <div
       tabIndex={0}
@@ -62,11 +80,7 @@ export const CustomNode: React.FC<NodeProps> = memo(({ type, data, selected }) =
       aria-selected={Boolean(selected)}
       aria-label={`${typeConfig.displayLabel}: ${label}${ruleId ? ` (${ruleId})` : ''}`}
       title={label}
-      className={`group relative w-[215px] bg-white rounded-lg border transition-all duration-150 shadow-2xs select-none outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
-        selected
-          ? `${typeConfig.styling.cardBorderSelected} ${typeConfig.styling.cardRingSelected} shadow-xs`
-          : `${typeConfig.styling.cardBorder} ${typeConfig.styling.cardBorderHover} hover:shadow-xs`
-      }`}
+      className={`group relative w-[215px] bg-white rounded-lg border transition-all duration-150 shadow-2xs select-none outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${borderAndRingClass} ${dimClass}`}
     >
       {/* Top Target Handle (Child incoming handle in hierarchy) */}
       <Handle
