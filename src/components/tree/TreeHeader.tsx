@@ -11,12 +11,14 @@ import {
   User,
   Undo2,
   Redo2,
+  Workflow,
 } from 'lucide-react';
 import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/treeStore';
 import { SearchBox } from './SearchBox';
 
 export const TreeHeader: React.FC = () => {
   const { loadSampleTree, undo, redo } = useTreeStore();
+  const nodesCount = useTreeStore((state) => state.nodes.length);
 
   const pastCount = useSyncExternalStore(
     useTreeStore.temporal.subscribe,
@@ -126,6 +128,25 @@ export const TreeHeader: React.FC = () => {
         >
           <FileCode className="w-3.5 h-3.5" />
           <span className="hidden xl:inline">JSON</span>
+        </button>
+
+        {/* Auto Layout (Day 10) */}
+        <button
+          type="button"
+          disabled={nodesCount === 0}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('tree:trigger-autolayout'));
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition shadow-2xs ${
+            nodesCount > 0
+              ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 cursor-pointer'
+              : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed opacity-60'
+          }`}
+          title="Auto Layout (arranges tree in hierarchical top-to-bottom layout)"
+          aria-label="Auto Layout"
+        >
+          <Workflow className="w-3.5 h-3.5 text-blue-600" />
+          <span className="hidden sm:inline">Auto Layout</span>
         </button>
 
         {/* Load Sample Tree (Active Day 1/4 Action) */}

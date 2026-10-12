@@ -357,3 +357,48 @@ The following pure-function business logic modules will reside under `src/lib/` 
 - **Subtree Collapse & Expand**: Toggling `node.data.collapsed` to dynamically hide child branches without destroying graph relationships or reporting phantom orphans.
 - **Properties Inspector**: Live property editing drawer for rule IDs, descriptions, parameters, and tags.
 - **MiniMap & Viewport Navigator**: Visual bird's-eye canvas navigation.
+
+---
+
+## 10. Hierarchical Auto-Layout Engine (Day 10)
+
+### Execution Pipeline
+`nodes + edges → validate layout inputs → build temporary Dagre graph → calculate layout → convert center coordinates to top-left positions → round coordinates → validate result → apply one batch update → fit viewport`
+
+### Architectural Specifications & Principles
+
+1. **Layout Defaults & Dimension Fallbacks**:
+   - `LAYOUT_DEFAULTS`:
+     - Direction: `'TB'` (top-to-bottom)
+     - `nodeWidth`: 220px (matches compact 215px CustomNode card width plus margins)
+     - `nodeHeight`: 80px (default card height fallback)
+     - `nodeSep`: 50px (horizontal separation between sibling nodes)
+     - `rankSep`: 80px (vertical separation between hierarchical tiers)
+     - `marginX`: 50px, `marginY`: 50px
+   - **Dimension Resolution (`resolveNodeDimensions`)**: Checks React Flow `node.measured?.width` and `node.measured?.height` if available and finite; falls back to explicit `node.width`/`node.height`, and finally to `LAYOUT_DEFAULTS`. Rejects negative, zero, or non-finite dimensions with a typed failure.
+
+2. **Deterministic Behavior & Idempotence**:
+   - Output coordinates depend strictly on graph topology, dimensions, and settings — never on previous (x, y) coordinates.
+   - Re-running auto-layout on an already organized graph is detected as a no-op (`hasMoved === false`), displaying feedback `"Already arranged."` and creating **zero history entries**.
+
+3. **Separation of Layout from Graph Validation**:
+   - Auto-layout is strictly a visual arrangement engine, NOT a graph validator or repair mechanism.
+   - Malformed graphs (temporary cycles, multiple roots, disconnected components, orphan nodes) are tolerated and arranged safely. Auto-layout never deletes, modifies, or synthesizes graph edges or nodes.
+
+4. **Cycle & Multigraph Handling in Temporary Graph**:
+   - Configures `@dagrejs/dagre` with `acyclicer: 'greedy'` and `multigraph: true`.
+   - Edges with missing endpoints or self-loops (`source === target`) are skipped only during temporary layout graph construction; real edges remain completely untouched.
+
+5. **Disconnected Components & Multiple Roots**:
+   - Disconnected subtrees and additional roots are placed side-by-side without inventing artificial parent links. Sibling and component placement order follows Dagre's deterministic ranker.
+
+6. **Zero CSS Node Animation Discipline**:
+   - Node positions are updated instantly without CSS transition delays. CSS transitions on node positions cause severe visual desynchronization between node DOM cards and SVG edge bezier curves. Viewport panning and zooming after layout uses smooth camera movement (`fitView` duration: 300ms, or 0ms when `prefers-reduced-motion` is active).
+
+7. **One-Step Undo / Redo History Integration**:
+   - All updated node positions are applied in a single atomic Zustand update (`set({ nodes: nextNodes })`).
+   - Monitored by Zundo with `areGraphStatesEqual`: moving any number of nodes (from 1 to 500+) produces **exactly 1 history entry**.
+   - Exactly one Undo restores all pre-layout positions across all nodes. Exactly one Redo reapplies the layout. No-op or failed layouts create 0 history entries.
+
+8. **Future Day 12 Note on Subtree Collapse**:
+   - Day 12 collapse functionality will decide whether collapsed descendants occupy layout space or fold into parent bounds. Day 10 maintains all nodes and preserves `collapsed` data flags without collapse-specific filtering.

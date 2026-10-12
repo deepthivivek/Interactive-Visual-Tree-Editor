@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 10] - 2026-10-12: Production-Quality Hierarchical Auto-Layout Engine
+
+### Added
+- **Pure Hierarchical Layout Engine (`src/lib/autoLayout.ts`)**:
+  - Pure, deterministic, and idempotent layout calculation using `@dagrejs/dagre`.
+  - Immutably computes new `(x, y)` coordinates for nodes without altering node data, types, IDs, or edge definitions.
+  - Translates Dagre center coordinates to top-left React Flow positions rounded to integers.
+  - Accommodates cycles via Dagre's `acyclicer: 'greedy'` and multigraph parallel edges without repairing or corrupting actual graph topology.
+  - Skips invalid edges (missing endpoints, self-loops) strictly within the temporary layout graph.
+  - Computes exact geometric metrics: node counts, moved counts, ranks count, max nodes per rank, and pairwise bounding-box overlap checks.
+  - Supports custom dimension overrides and fallback measurements (`resolveNodeDimensions`).
+- **Store Batch Integration & History Preservation (`src/store/treeStore.ts`, `src/types/tree.ts`)**:
+  - Implemented `applyAutoLayout` store action.
+  - Enforces re-entrancy guard against duplicate rapid clicks and snapshot safety against concurrent store updates.
+  - Atomically applies node positions in exactly ONE history entry.
+  - Detects no-op runs on already-arranged graphs (`"Already arranged."`), producing ZERO history entries.
+  - Preserves selection, inspector state, and Day 9 search cache object reference equality.
+- **Auto Layout UI Controls (`src/components/tree/TreeCanvas.tsx`, `src/components/tree/TreeHeader.tsx`)**:
+  - Added accessible Auto Layout button with verified Lucide `Workflow` icon to the floating canvas controls toolbar and top header.
+  - Triggers smooth viewport fitting (`fitView({ padding: 0.2, maxZoom: 1 })`) on next animation frame after position updates.
+  - Respects `prefers-reduced-motion` with 0ms duration when requested.
+  - Synchronizes transient status feedback (`statusFeedback`) outside graph history.
+- **Automated Tests & Large-Graph Fixtures (`src/tests/autoLayoutDay10.test.ts`, `src/tests/helpers/treeBuilders.ts`)**:
+  - Implemented `buildLargeTree(n)` generator creating deterministic acyclic hierarchies conforming to relationship rules.
+  - Added 23 comprehensive unit and integration tests covering empty graphs, single nodes, deep trees, wide trees, multiple roots, disconnected components, dynamic node IDs, idempotence, cycle safety, missing endpoint safety, duplicate ID rejection, invalid dimension rejection, 500-node graph layout, one-step Undo, one-step Redo, zero-history no-ops, and search cache stability.
+
+### Verification Status
+- Vitest: 11 / 11 test suites passed, 233 / 233 unit tests passed (100% pass rate).
+- TypeScript: `npx tsc --noEmit` passed with 0 errors under strict type checking.
+- Lint: ESLint passed with 0 errors and 0 warnings.
+- Production build: `NODE_ENV=production next build` succeeded.
+- Browser Verification: Pending manual verification by user.
+- Deployment / Live URL: Unverified (automated deployment not performed; manual deployment instructions provided).
+
 ## [Day 7] - 2026-10-08: Right-Side Properties Inspector & Live Property Editing
 
 ### Added

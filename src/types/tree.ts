@@ -189,4 +189,14 @@ export interface TreeStoreState {
 
   loadSampleTree: () => void;
   resetToSampleData: () => void;
+
+  // Day 10 Hierarchical Auto-Layout
+  applyAutoLayout: (options?: import('../lib/autoLayout').LayoutOptions) => {
+    ok: boolean;
+    movedCount?: number;
+    noop?: boolean;
+    message?: string;
+    reason?: string;
+    metrics?: import('../lib/autoLayout').AutoLayoutMetrics;
+  };
 }

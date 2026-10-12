@@ -32,6 +32,7 @@ import {
   AlertCircle,
   X,
   Trash2,
+  Workflow,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { isPolicyNodeType } from '../../lib/nodeFactory';
@@ -302,6 +303,60 @@ const TreeCanvasInner: React.FC = () => {
     }
   }, [nodes.length, fitView, setViewport]);
 
+  // Day 10 Auto-Layout handler & viewport fitting
+  const [isLayoutBusy, setIsLayoutBusy] = useState(false);
+  const layoutPendingFitRef = useRef(false);
+
+  const handleAutoLayout = useCallback(() => {
+    if (isLayoutBusy || nodes.length === 0) return;
+    setIsLayoutBusy(true);
+
+    try {
+      const result = useTreeStore.getState().applyAutoLayout();
+      if (result.ok && !result.noop) {
+        layoutPendingFitRef.current = true;
+      } else {
+        setIsLayoutBusy(false);
+      }
+    } catch {
+      setIsLayoutBusy(false);
+    }
+  }, [nodes.length, isLayoutBusy]);
+
+  // Viewport fitting effect triggered ONLY after React Flow has rendered updated node positions
+  useEffect(() => {
+    if (!layoutPendingFitRef.current) return;
+    layoutPendingFitRef.current = false;
+
+    // Allow React Flow to process setNodes and update internal nodeLookup before computing bounds
+    const timer = setTimeout(() => {
+      requestAnimationFrame(() => {
+        const prefersReducedMotion =
+          typeof window !== 'undefined' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        fitView({
+          padding: 0.2,
+          maxZoom: 1,
+          duration: prefersReducedMotion ? 0 : 300,
+        }).finally(() => {
+          setIsLayoutBusy(false);
+        });
+      });
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [nodes, fitView]);
+
+  useEffect(() => {
+    const handleTrigger = () => {
+      handleAutoLayout();
+    };
+    window.addEventListener('tree:trigger-autolayout', handleTrigger);
+    return () => window.removeEventListener('tree:trigger-autolayout', handleTrigger);
+  }, [handleAutoLayout]);
+
   // HTML5 Drag-and-Drop Handlers for Node Creation (Day 4)
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -566,6 +621,8 @@ const TreeCanvasInner: React.FC = () => {
 
       {/* React Flow Graph Canvas */}
       <ReactFlow
+        className="w-full h-full"
+        style={{ width: '100%', height: '100%' }}
         nodes={flowNodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
@@ -690,6 +747,19 @@ const TreeCanvasInner: React.FC = () => {
           title="Reset view (restores default canvas position without modifying tree data)"
         >
           <RotateCcw className="w-4 h-4" />
+        </button>
+
+        {/* Auto Layout (Day 10) */}
+        <button
+          type="button"
+          onClick={handleAutoLayout}
+          disabled={nodes.length === 0 || isLayoutBusy}
+          aria-busy={isLayoutBusy}
+          className="p-1.5 text-slate-600 hover:text-slate-900 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 transition"
+          aria-label="Auto Layout"
+          title="Auto Layout (arranges tree in hierarchical top-to-bottom layout)"
+        >
+          <Workflow className="w-4 h-4" />
         </button>
 
         <div className="w-px h-4 bg-slate-200 mx-0.5" />

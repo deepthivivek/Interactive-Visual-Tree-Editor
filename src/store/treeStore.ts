@@ -24,6 +24,7 @@ import {
   setMetadataPure,
   deleteMetadataPure,
 } from '../lib/nodePropertyOperations';
+import { calculateAutoLayout, type LayoutOptions } from '../lib/autoLayout';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -335,6 +336,7 @@ export const getCanonicalSampleEdges = (): TreeEdge[] =>
  * 2. Transient UI State: `selectedNodeId` (never part of document or undo history).
  */
 let dragBaselineNodes: TreeNode[] | null = null;
+let isLayoutRunning = false;
 
 export type TreeTemporalState = TemporalState<{ nodes: TreeNode[]; edges: TreeEdge[] }> & {
   _handleSet?: (
@@ -1171,6 +1173,89 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       statusFeedback: null,
     });
     useTreeStore.temporal.getState().clear();
+  },
+
+  /**
+   * Day 10: Hierarchical Auto-Layout Action.
+   *
+   * Executes deterministic top-to-bottom layout via @dagrejs/dagre:
+   * - Re-entrancy guard protects against rapid duplicate clicks.
+   * - Snapshot safety: verifies graph is current before applying coordinates.
+   * - Position-only mutation: preserves node IDs, types, data object references, and edges.
+   * - Single atomic store update: creates exactly 1 history entry if nodes moved.
+   * - No-op or failure updates create 0 history entries.
+   * - Preserves selection, inspector state, and Day 9 search cache stability.
+   */
+  applyAutoLayout: (options?: LayoutOptions) => {
+    if (isLayoutRunning) {
+      return {
+        ok: false,
+        reason: 'Layout already in progress',
+        message: 'Layout already in progress.',
+      };
+    }
+    isLayoutRunning = true;
+    try {
+      const snapshotNodes = get().nodes;
+      const snapshotEdges = get().edges;
+
+      if (snapshotNodes.length === 0) {
+        set({ statusFeedback: 'No nodes to arrange.' });
+        return { ok: true, noop: true, movedCount: 0, message: 'No nodes to arrange.' };
+      }
+
+      const layoutResult = calculateAutoLayout(snapshotNodes, snapshotEdges, options);
+
+      if (!layoutResult.ok) {
+        const errorMsg = `Layout failed: ${layoutResult.reason}`;
+        set({ statusFeedback: errorMsg });
+        return { ok: false, reason: layoutResult.reason, message: errorMsg };
+      }
+
+      // Snapshot safety: verify graph was not mutated during calculation
+      if (get().nodes !== snapshotNodes || get().edges !== snapshotEdges) {
+        return {
+          ok: false,
+          reason: 'Graph modified during layout calculation',
+          message: 'Layout aborted: graph modified during calculation.',
+        };
+      }
+
+      // Idempotence & no-op detection: 0 history entries created
+      if (!layoutResult.hasMoved) {
+        const noopMsg = 'Already arranged.';
+        set({ statusFeedback: noopMsg });
+        return { ok: true, noop: true, movedCount: 0, message: noopMsg };
+      }
+
+      // Construct nextNodes preserving exact node data references and un-moved node references
+      const nextNodes = snapshotNodes.map((node) => {
+        const newPos = layoutResult.positions[node.id];
+        if (!newPos || (newPos.x === node.position.x && newPos.y === node.position.y)) {
+          return node;
+        }
+        return {
+          ...node,
+          position: { x: newPos.x, y: newPos.y },
+        };
+      });
+
+      const successMsg = `Auto-layout applied (${layoutResult.metrics.movedCount} nodes arranged).`;
+      set({
+        nodes: nextNodes,
+        statusFeedback: successMsg,
+      });
+
+      return {
+        ok: true,
+        noop: false,
+        movedCount: layoutResult.metrics.movedCount,
+        message: successMsg,
+        metrics: layoutResult.metrics,
+      };
+    } finally {
+      isLayoutRunning = false;
+    }
   },
     }),
     {

@@ -18,10 +18,10 @@
 | **11d. Node Operations, Re-parenting & Deletion Safety** (Add child, duplicate node, re-parenting, deletion confirmation, status timers, keyboard safety) | Yes | Yes | Yes | Implemented in Day 6: executeAddChild, executeDuplicateNode, executeDeleteNode, executeReparentNode, StatusTimerManager, resolveKeyboardAction. |
 | **12. Node Editing & Properties Inspector Panel** (live field editing, parameter dictionary, metadata, tags, live sync) | Yes | Yes | Yes | Implemented in Day 7: pure property operations, live Zustand sync, parameters & metadata key-value editors, tag manager, classification selectors. |
 | **13. Node & Subtree Deletion** (delete single node or cascade subtree) | No | No | No | Planned for future days. |
-| **14. Undo / Redo History via Zundo** (partialized strictly to nodes and edges; zero history for selection) | No | No | No | Planned for Day 8 onward. |
+| **14. Undo / Redo History via Zundo** (partialized strictly to nodes and edges; zero history for selection) | Yes | Yes | Yes | Implemented in Day 8 with drag transactions and batch updates. |
 | **15. Subtree Collapse / Expand** (`collapsed` data flag; hide descendants without graph deletion) | No | No | No | Planned for future days. |
-| **16. Auto-Layout Engine via Dagre** (`src/lib/autoLayout.ts`) | No | No | No | Planned for future days. |
-| **17. Search & Highlight Engine** (`src/lib/search.ts`) | No | No | No | Planned for future days. |
+| **16. Auto-Layout Engine via Dagre** (`src/lib/autoLayout.ts`, `@dagrejs/dagre`, top-to-bottom layout, 1-step Undo/Redo, viewport fitting) | Yes | Yes | Pending manual verification | Pure layout engine, idempotence, zero-history no-ops, 23/23 tests passing. Browser verification pending. |
+| **17. Search & Highlight Engine** (`src/lib/search.ts`) | Yes | Yes | Yes | Implemented in Day 9 with exact scoring weights and cached reference stability. |
 | **18. MiniMap & Canvas Navigation Controls** | No | No | No | Planned for future days. |
 | **19. Graph Structure Validation Engine** (`src/lib/validation.ts`) | No | No | No | Planned for Day 13. |
 | **20. JSON Export / Import with Schema Validation** (`src/lib/json.ts`) | No | No | No | Planned for future days. |
