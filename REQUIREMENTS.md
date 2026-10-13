@@ -22,8 +22,8 @@
 | **15. Subtree Collapse / Expand** (`collapsed` data flag; hide descendants without graph deletion) | No | No | No | Planned for future days. |
 | **16. Auto-Layout Engine via Dagre** (`src/lib/autoLayout.ts`, `@dagrejs/dagre`, top-to-bottom layout, 1-step Undo/Redo, viewport fitting) | Yes | Yes | Pending manual verification | Pure layout engine, idempotence, zero-history no-ops, 23/23 tests passing. Browser verification pending. |
 | **17. Search & Highlight Engine** (`src/lib/search.ts`) | Yes | Yes | Yes | Implemented in Day 9 with exact scoring weights and cached reference stability. |
-| **18. MiniMap & Canvas Navigation Controls** | No | No | No | Planned for future days. |
-| **19. Graph Structure Validation Engine** (`src/lib/validation.ts`) | No | No | No | Planned for Day 13. |
+| **18. MiniMap & Canvas Navigation Controls** (`<MiniMap />`, interactive overview, node type color-coding, toggle button, zoom percentage indicator, Fit View, Reset View) | Yes | Yes | Yes | Implemented in Day 11 with custom node palette styling, reactive viewport bounds, and toolbar toggles. |
+| **19. Graph Structure Diagnostics Engine** (`src/lib/graphDiagnostics.ts`, hierarchy audit, single-parent invariants, cycle checks, completeness rules, interactive diagnostics modal with node focusing) | Yes | Yes | Yes | Pure diagnostic engine in Day 11 with real-time UI header indicator and interactive inspector focus. |
 | **20. JSON Export / Import with Schema Validation** (`src/lib/json.ts`) | No | No | No | Planned for future days. |
 | **21. Local Persistence Engine** (`src/lib/persistence.ts`) | No | No | No | Planned for future days. |
 | **22. Context Menu & Subtree Copy/Paste** (duplicate, copy subtree, paste with fresh IDs) | No | No | No | Planned for future days. |

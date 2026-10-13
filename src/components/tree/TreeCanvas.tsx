@@ -20,6 +20,7 @@ import {
   type HandleType,
   ConnectionMode,
   MarkerType,
+  MiniMap,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
@@ -28,11 +29,14 @@ import {
   Maximize2,
   RotateCcw,
   Grid,
+  Map as MapIcon,
+  Keyboard,
   FolderTree,
   AlertCircle,
   X,
   Trash2,
   Workflow,
+  ShieldCheck,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { isPolicyNodeType } from '../../lib/nodeFactory';
@@ -42,9 +46,14 @@ import {
   isKeyboardEventTargetProtected,
   resolveKeyboardAction,
   resolveUndoRedoAction,
+  resolveCanvasKeyboardAction,
+  computeNudgedPosition,
+  getNextSelectedNodeId,
 } from '../../lib/keyboardSafety';
 import { StatusTimerManager } from '../../lib/statusTimer';
 import type { TreeNode, TreeEdge } from '../../types/tree';
+import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { GraphDiagnosticsModal } from './GraphDiagnosticsModal';
 
 import { CustomNode } from './CustomNode';
 
@@ -85,7 +94,8 @@ const TreeCanvasInner: React.FC = () => {
     startNodeDrag,
     stopNodeDrag,
   } = useTreeStore();
-  const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition } = useReactFlow();
+  const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition, setCenter } =
+    useReactFlow();
 
   // Reactive viewport coordinates and zoom from React Flow
   const { x, y, zoom } = useViewport();
@@ -97,6 +107,9 @@ const TreeCanvasInner: React.FC = () => {
 
   // Transient UI states for canvas (not persisted, not in undo history)
   const [gridVisible, setGridVisible] = useState(true);
+  const [miniMapVisible, setMiniMapVisible] = useState(true);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [ariaFeedback, setAriaFeedback] = useState<string>('');
   const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
 
@@ -219,74 +232,6 @@ const TreeCanvasInner: React.FC = () => {
     stopNodeDrag();
   }, [stopNodeDrag]);
 
-  // Global keyboard listener enforcing Day 6 keyboard actions & Day 8 Undo/Redo with input shielding
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const state = useTreeStore.getState();
-      const target = event.target as HTMLElement | null;
-
-      // Day 8 Undo / Redo keyboard shortcuts with native input editing protection
-      const undoRedoAction = resolveUndoRedoAction({
-        key: event.key,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        shiftKey: event.shiftKey,
-        target,
-      });
-
-      if (undoRedoAction === 'undo') {
-        event.preventDefault();
-        state.undo();
-        return;
-      } else if (undoRedoAction === 'redo') {
-        event.preventDefault();
-        state.redo();
-        return;
-      }
-
-      const action = resolveKeyboardAction({
-        key: event.key,
-        target: {
-          tagName: target?.tagName,
-          isContentEditable: Boolean(target?.isContentEditable),
-          insideNoKey: Boolean(target?.closest?.('.nokey')),
-        },
-        selection: {
-          selectedNodeId: state.selectedNodeId,
-          selectedEdgeId: state.selectedEdgeId,
-        },
-        confirmationOpen: Boolean(state.deleteConfirmation),
-      });
-
-      if (action === 'delete-node') {
-        event.preventDefault();
-        if (state.selectedNodeId) {
-          state.requestDeleteNode(state.selectedNodeId);
-        }
-      } else if (action === 'delete-edge') {
-        event.preventDefault();
-        if (state.selectedEdgeId) {
-          const deleted = state.deleteEdge(state.selectedEdgeId);
-          if (deleted) {
-            setAriaFeedback('Edge deleted.');
-          }
-        }
-      } else if (action === 'escape') {
-        event.preventDefault();
-        if (state.deleteConfirmation) {
-          state.cancelDeleteNode();
-        } else if (state.addChildChoiceOpen) {
-          state.setAddChildChoiceOpen(false);
-        } else if (state.selectedNodeId || state.selectedEdgeId) {
-          state.clearSelection();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // Fit View handler with safety check
   const handleFitView = useCallback(() => {
     if (nodes.length > 0) {
@@ -349,13 +294,204 @@ const TreeCanvasInner: React.FC = () => {
     };
   }, [nodes, fitView]);
 
+  // Global keyboard listener enforcing Day 6 actions, Day 8 Undo/Redo & Day 11 canvas navigation
   useEffect(() => {
-    const handleTrigger = () => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const state = useTreeStore.getState();
+      const target = event.target as HTMLElement | null;
+
+      // 1. Day 8 Undo / Redo keyboard shortcuts with native input editing protection
+      const undoRedoAction = resolveUndoRedoAction({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        target,
+      });
+
+      if (undoRedoAction === 'undo') {
+        event.preventDefault();
+        state.undo();
+        return;
+      } else if (undoRedoAction === 'redo') {
+        event.preventDefault();
+        state.redo();
+        return;
+      }
+
+      // 2. Day 6 Core Graph Deletion / Escape actions
+      const action = resolveKeyboardAction({
+        key: event.key,
+        target: {
+          tagName: target?.tagName,
+          isContentEditable: Boolean(target?.isContentEditable),
+          insideNoKey: Boolean(target?.closest?.('.nokey')),
+        },
+        selection: {
+          selectedNodeId: state.selectedNodeId,
+          selectedEdgeId: state.selectedEdgeId,
+        },
+        confirmationOpen: Boolean(state.deleteConfirmation),
+      });
+
+      if (action === 'delete-node') {
+        event.preventDefault();
+        if (state.selectedNodeId) {
+          state.requestDeleteNode(state.selectedNodeId);
+        }
+        return;
+      } else if (action === 'delete-edge') {
+        event.preventDefault();
+        if (state.selectedEdgeId) {
+          const deleted = state.deleteEdge(state.selectedEdgeId);
+          if (deleted) {
+            setAriaFeedback('Edge deleted.');
+          }
+        }
+        return;
+      } else if (action === 'escape') {
+        event.preventDefault();
+        if (state.deleteConfirmation) {
+          state.cancelDeleteNode();
+        } else if (state.addChildChoiceOpen) {
+          state.setAddChildChoiceOpen(false);
+        } else if (state.selectedNodeId || state.selectedEdgeId) {
+          state.clearSelection();
+        }
+        return;
+      }
+
+      // 3. Day 11 Extended Canvas Navigation & Interaction Shortcuts
+      const canvasAction = resolveCanvasKeyboardAction({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        target,
+        hasSelectedNode: Boolean(state.selectedNodeId),
+        hasNodes: state.nodes.length > 0,
+      });
+
+      if (canvasAction === 'open-shortcuts') {
+        event.preventDefault();
+        setShortcutsModalOpen(true);
+        return;
+      }
+
+      if (canvasAction === 'auto-layout') {
+        event.preventDefault();
+        handleAutoLayout();
+        return;
+      }
+
+      if (canvasAction === 'fit-view') {
+        event.preventDefault();
+        handleFitView();
+        return;
+      }
+
+      if (canvasAction === 'reset-view') {
+        event.preventDefault();
+        handleResetView();
+        return;
+      }
+
+      if (canvasAction === 'toggle-minimap') {
+        event.preventDefault();
+        setMiniMapVisible((v) => !v);
+        return;
+      }
+
+      if (canvasAction === 'toggle-grid') {
+        event.preventDefault();
+        setGridVisible((v) => !v);
+        return;
+      }
+
+      if (canvasAction === 'toggle-diagnostics') {
+        event.preventDefault();
+        setDiagnosticsModalOpen((v) => !v);
+        return;
+      }
+
+      if (canvasAction === 'cycle-node-next' || canvasAction === 'cycle-node-prev') {
+        event.preventDefault();
+        const nextId = getNextSelectedNodeId(
+          state.nodes,
+          state.selectedNodeId,
+          canvasAction === 'cycle-node-next' ? 'next' : 'prev'
+        );
+        if (nextId) {
+          state.setSelectedNodeId(nextId);
+          state.setSelectedEdgeId(null);
+        }
+        return;
+      }
+
+      if (canvasAction.startsWith('nudge-node-')) {
+        event.preventDefault();
+        const direction = canvasAction.replace('nudge-node-', '') as
+          | 'up'
+          | 'down'
+          | 'left'
+          | 'right';
+        const currentNode = state.nodes.find((n) => n.id === state.selectedNodeId);
+        if (currentNode) {
+          const newPos = computeNudgedPosition(currentNode.position, direction, 20);
+          state.startNodeDrag();
+          state.setNodes(
+            state.nodes.map((n) =>
+              n.id === currentNode.id ? { ...n, position: newPos } : n
+            )
+          );
+          state.stopNodeDrag();
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleAutoLayout, handleFitView, handleResetView]);
+
+  // Day 11 Custom Event Listeners
+  useEffect(() => {
+    const handleTriggerLayout = () => {
       handleAutoLayout();
     };
-    window.addEventListener('tree:trigger-autolayout', handleTrigger);
-    return () => window.removeEventListener('tree:trigger-autolayout', handleTrigger);
-  }, [handleAutoLayout]);
+    const handleTriggerShortcuts = () => {
+      setShortcutsModalOpen(true);
+    };
+    const handleTriggerDiagnostics = () => {
+      setDiagnosticsModalOpen(true);
+    };
+    const handleFocusNode = (e: Event) => {
+      const customEvent = e as CustomEvent<{ nodeId: string }>;
+      const nodeId = customEvent.detail?.nodeId;
+      if (nodeId) {
+        const targetNode = useTreeStore.getState().nodes.find((n) => n.id === nodeId);
+        if (targetNode) {
+          setCenter(targetNode.position.x + 120, targetNode.position.y + 40, {
+            zoom: 1,
+            duration: 350,
+          });
+        }
+      }
+    };
+
+    window.addEventListener('tree:trigger-autolayout', handleTriggerLayout);
+    window.addEventListener('tree:trigger-shortcuts', handleTriggerShortcuts);
+    window.addEventListener('tree:trigger-diagnostics', handleTriggerDiagnostics);
+    window.addEventListener('tree:focus-node', handleFocusNode);
+
+    return () => {
+      window.removeEventListener('tree:trigger-autolayout', handleTriggerLayout);
+      window.removeEventListener('tree:trigger-shortcuts', handleTriggerShortcuts);
+      window.removeEventListener('tree:trigger-diagnostics', handleTriggerDiagnostics);
+      window.removeEventListener('tree:focus-node', handleFocusNode);
+    };
+  }, [handleAutoLayout, setCenter]);
 
   // HTML5 Drag-and-Drop Handlers for Node Creation (Day 4)
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -669,6 +805,35 @@ const TreeCanvasInner: React.FC = () => {
             variant={BackgroundVariant.Dots}
           />
         )}
+
+        {/* Toggleable MiniMap Overview (Day 11) */}
+        {miniMapVisible && (
+          <MiniMap
+            nodeColor={(n) => {
+              const node = n as unknown as TreeNode;
+              switch (node.type) {
+                case 'root':
+                  return '#2563eb';
+                case 'rule':
+                  return '#6366f1';
+                case 'condition':
+                  return '#f59e0b';
+                case 'action':
+                  return '#10b981';
+                default:
+                  return '#94a3b8';
+              }
+            }}
+            nodeStrokeWidth={2}
+            nodeBorderRadius={4}
+            maskColor="rgba(241, 245, 249, 0.7)"
+            position="bottom-right"
+            className="!bg-white/95 !border !border-slate-200 !rounded-lg !shadow-md backdrop-blur-xs mb-3 mr-3"
+            ariaLabel="MiniMap overview of tree structure"
+            zoomable
+            pannable
+          />
+        )}
       </ReactFlow>
 
       {/* Empty State when no nodes exist */}
@@ -775,11 +940,61 @@ const TreeCanvasInner: React.FC = () => {
           }`}
           aria-label={gridVisible ? 'Hide grid background' : 'Show grid background'}
           aria-pressed={gridVisible}
-          title={gridVisible ? 'Grid: Enabled (click to hide)' : 'Grid: Disabled (click to show)'}
+          title={gridVisible ? 'Grid: Enabled (click to hide) [Ctrl+G]' : 'Grid: Disabled (click to show) [Ctrl+G]'}
         >
           <Grid className="w-4 h-4" />
         </button>
+
+        {/* MiniMap Toggle (Day 11) */}
+        <button
+          type="button"
+          onClick={() => setMiniMapVisible((prev) => !prev)}
+          className={`p-1.5 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 transition ${
+            miniMapVisible
+              ? 'text-blue-600 bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200/60'
+              : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100 border border-transparent'
+          }`}
+          aria-label={miniMapVisible ? 'Hide MiniMap' : 'Show MiniMap'}
+          aria-pressed={miniMapVisible}
+          title={miniMapVisible ? 'MiniMap: Enabled (click to hide) [Ctrl+M]' : 'MiniMap: Disabled (click to show) [Ctrl+M]'}
+        >
+          <MapIcon className="w-4 h-4" />
+        </button>
+
+        <div className="w-px h-4 bg-slate-200 mx-0.5" />
+
+        {/* Keyboard Shortcuts Trigger (Day 11) */}
+        <button
+          type="button"
+          onClick={() => setShortcutsModalOpen(true)}
+          className="p-1.5 text-slate-500 hover:text-slate-800 rounded hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 transition"
+          aria-label="Keyboard Shortcuts"
+          title="Keyboard Shortcuts [?]"
+        >
+          <Keyboard className="w-4 h-4" />
+        </button>
       </div>
+
+      {/* Keyboard Shortcuts Reference Dialog (Day 11) */}
+      <KeyboardShortcutsModal
+        isOpen={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
+      />
+
+      {/* Graph Diagnostics Modal (Day 11) */}
+      <GraphDiagnosticsModal
+        isOpen={diagnosticsModalOpen}
+        onClose={() => setDiagnosticsModalOpen(false)}
+        onFocusNode={(nodeId) => {
+          const targetNode = nodes.find((n) => n.id === nodeId);
+          if (targetNode) {
+            setCenter(targetNode.position.x + 120, targetNode.position.y + 40, {
+              zoom: 1,
+              duration: 350,
+            });
+          }
+        }}
+      />
 
       {/* Mock Compliance Disclaimer (Persistent Subtle Note) */}
       <div className="absolute top-2.5 right-4 z-10 hidden sm:block pointer-events-none">

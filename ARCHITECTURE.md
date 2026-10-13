@@ -402,3 +402,46 @@ The following pure-function business logic modules will reside under `src/lib/` 
 
 8. **Future Day 12 Note on Subtree Collapse**:
    - Day 12 collapse functionality will decide whether collapsed descendants occupy layout space or fold into parent bounds. Day 10 maintains all nodes and preserves `collapsed` data flags without collapse-specific filtering.
+
+## 11. Canvas Navigation, Keyboard Accessibility & Graph Diagnostics (Day 11)
+
+### Professional Canvas Navigation & MiniMap
+- **React Flow MiniMap**: Integrated directly inside `<ReactFlow>` using `@xyflow/react`'s `<MiniMap />`.
+- **Node Type Palette Color Alignment**:
+  - `root`: `#2563eb` (primary blue)
+  - `rule`: `#6366f1` (indigo)
+  - `condition`: `#f59e0b` (amber)
+  - `action`: `#10b981` (emerald)
+- **Viewport Bounds & Controls**:
+  - MiniMap visibility toggleable via toolbar button (`MapIcon`) and keyboard shortcut (`Ctrl+M` / `Alt+M`).
+  - Zoom level indicator dynamically reads React Flow viewport scale (`Math.round(zoom * 100)%`).
+  - Fit View (`Ctrl+0`) centers and frames the bounding box with responsive padding.
+  - Reset View (`Ctrl+1`) restores the viewport position safely without mutating document data.
+
+### Unified Keyboard Shortcuts Engine (`src/lib/keyboardSafety.ts`)
+- **Input Shielding**:
+  - Pure function `isKeyboardEventTargetProtected` guards `<input>`, `<textarea>`, `<select>`, `isContentEditable`, and `.nokey` containers against accidental canvas shortcuts.
+- **Shortcuts Specification**:
+  - `?` or `Shift+/`: Opens `KeyboardShortcutsModal`.
+  - `Ctrl+K` / `Cmd+K`: Focuses the advanced SearchBox.
+  - `Ctrl+Shift+L` / `Alt+L`: Triggers Dagre hierarchical auto-layout.
+  - `Ctrl+0`: Fit View.
+  - `Ctrl+1`: Reset View.
+  - `Ctrl+M`: Toggle MiniMap visibility.
+  - `Ctrl+G`: Toggle Grid visibility.
+  - `Ctrl+Shift+D`: Opens Graph Diagnostics dialog.
+  - `Tab` / `Shift+Tab`: Forward and backward wraparound selection cycling.
+  - `Arrow Keys`: Nudges selected node by 20px step inside drag transaction (`startNodeDrag` -> `setNodes` -> `stopNodeDrag`), enabling atomic 1-step Undo.
+
+### Pure Graph Diagnostics Engine (`src/lib/graphDiagnostics.ts`)
+- **Structural Health Rules**:
+  - **Root Count**: Zero roots (Error), multiple roots (Warning), single root (Healthy).
+  - **Tree Invariant**: Single-parent rule enforcement (at most 1 incoming edge per node).
+  - **Cycle Detection**: Zero cyclic dependencies allowed in compliance policy hierarchies (`hasAnyCycle`).
+  - **Relationship Grammar**: Validates all edges against `ALLOWED_CHILDREN_MAP` from `relationshipRules.ts`.
+  - **Orphan Isolation**: Flags non-root nodes with zero incoming and zero outgoing edges.
+  - **Metadata Audit**: Flags empty node labels (Error), missing Rule IDs on Rule nodes (Warning), deprecated nodes (Warning), and draft status (Info).
+- **Interactive UI Integration (`src/components/tree/GraphDiagnosticsModal.tsx`)**:
+  - Header badge provides ambient health status (`Healthy`, `X Warn`, `X Errors`).
+  - Modal provides metric ribbons, severity filters (`All`, `Errors`, `Warnings`, `Info`), and one-click "Inspect" navigation that centers and pulses target nodes on the canvas.
+

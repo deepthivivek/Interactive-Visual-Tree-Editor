@@ -711,3 +711,32 @@ export function getValidParentCandidates(
     return a.id.localeCompare(b.id);
   });
 }
+
+/**
+ * Pure serialization function producing a valid TreeDocument JSON payload
+ * adhering to the schema: {"version": 1, "nodes": [], "edges": []}.
+ * Strictly excludes transient UI state (selection, viewport, modals, etc.).
+ */
+export function exportTreeDocument(
+  nodes: TreeNode[],
+  edges: TreeEdge[]
+): import('../types/tree').TreeDocument {
+  return {
+    version: 1,
+    nodes: nodes.map((n) => ({
+      id: n.id,
+      type: n.type,
+      position: { x: n.position.x, y: n.position.y },
+      data: { ...n.data },
+    })),
+    edges: edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+      ...(e.targetHandle ? { targetHandle: e.targetHandle } : {}),
+      ...(e.data ? { data: { ...e.data } } : {}),
+    })),
+  };
+}
+

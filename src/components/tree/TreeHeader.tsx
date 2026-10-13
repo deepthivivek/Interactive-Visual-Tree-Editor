@@ -1,24 +1,47 @@
 'use client';
 
-import React, { useSyncExternalStore } from 'react';
+import React, { useSyncExternalStore, useMemo } from 'react';
 import {
   Network,
   RotateCcw,
   Search,
   CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
   FileCode,
   Sun,
   User,
   Undo2,
   Redo2,
   Workflow,
+  Keyboard,
 } from 'lucide-react';
 import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/treeStore';
 import { SearchBox } from './SearchBox';
+import { runGraphDiagnostics } from '../../lib/graphDiagnostics';
+import { exportTreeDocument } from '../../lib/graphOperations';
 
 export const TreeHeader: React.FC = () => {
   const { loadSampleTree, undo, redo } = useTreeStore();
-  const nodesCount = useTreeStore((state) => state.nodes.length);
+  const nodes = useTreeStore((state) => state.nodes);
+  const edges = useTreeStore((state) => state.edges);
+  const nodesCount = nodes.length;
+
+  const diagnostics = useMemo(() => runGraphDiagnostics(nodes, edges), [nodes, edges]);
+
+  const handleExportJson = () => {
+    const doc = exportTreeDocument(nodes, edges);
+    const jsonStr = JSON.stringify(doc, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `compliance-tree-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const pastCount = useSyncExternalStore(
     useTreeStore.temporal.subscribe,
@@ -110,24 +133,66 @@ export const TreeHeader: React.FC = () => {
         {/* Advanced Search Box (Day 9) */}
         <SearchBox />
 
-        {/* Validate Action Placeholder */}
+        {/* Graph Diagnostics Trigger (Day 11) */}
         <button
-          disabled
-          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-400 bg-white border border-slate-200 rounded-md cursor-not-allowed opacity-70"
-          title="Rule Validation Engine scheduled for later milestone"
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('tree:trigger-diagnostics'));
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition shadow-2xs cursor-pointer ${
+            diagnostics.status === 'healthy'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+              : diagnostics.status === 'warning'
+              ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
+              : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100 hover:border-red-300'
+          }`}
+          title={`Graph Diagnostics: ${
+            diagnostics.status === 'healthy'
+              ? 'Hierarchy is healthy (0 issues)'
+              : `${diagnostics.totalIssues} issue${diagnostics.totalIssues > 1 ? 's' : ''} detected`
+          } [Ctrl+Shift+D]`}
+          aria-label={`Graph Diagnostics: ${diagnostics.status}`}
         >
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline">Validate</span>
+          {diagnostics.status === 'healthy' ? (
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          ) : diagnostics.status === 'warning' ? (
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+          ) : (
+            <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+          )}
+          <span className="hidden sm:inline font-semibold">
+            {diagnostics.status === 'healthy'
+              ? 'Healthy'
+              : diagnostics.status === 'warning'
+              ? `${diagnostics.warningCount} Warn`
+              : `${diagnostics.errorCount} Error${diagnostics.errorCount > 1 ? 's' : ''}`}
+          </span>
         </button>
 
-        {/* JSON / Export Action Placeholder */}
+        {/* Keyboard Shortcuts Trigger (Day 11) */}
         <button
-          disabled
-          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-400 bg-white border border-slate-200 rounded-md cursor-not-allowed opacity-70"
-          title="JSON Import/Export scheduled for later milestone"
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('tree:trigger-shortcuts'));
+          }}
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 transition shadow-2xs cursor-pointer"
+          title="Keyboard Shortcuts Reference [?]"
+          aria-label="Keyboard Shortcuts"
         >
-          <FileCode className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline">JSON</span>
+          <Keyboard className="w-3.5 h-3.5 text-slate-500" />
+          <span className="hidden xl:inline">Shortcuts</span>
+        </button>
+
+        {/* JSON / Export Action */}
+        <button
+          type="button"
+          onClick={handleExportJson}
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 transition shadow-2xs cursor-pointer"
+          title="Export compliance tree JSON document (version 1 schema)"
+          aria-label="Export compliance tree as JSON"
+        >
+          <FileCode className="w-3.5 h-3.5 text-slate-500" />
+          <span className="hidden xl:inline">Export JSON</span>
         </button>
 
         {/* Auto Layout (Day 10) */}

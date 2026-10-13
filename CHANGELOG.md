@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Day 11] - 2026-10-13: Professional Canvas Navigation, Keyboard Shortcuts, Graph Diagnostics, Smart Interaction Feedback, and End-to-End Reliability
+
+### Added
+- **Professional Canvas Navigation & MiniMap (`src/components/tree/TreeCanvas.tsx`)**:
+  - Integrated React Flow `<MiniMap />` with color-coding matching node types (`#2563eb` root, `#6366f1` rule, `#f59e0b` condition, `#10b981` action).
+  - Floating canvas controls updated with MiniMap show/hide toggle (`Map` icon) and keyboard shortcut (`Ctrl+M` / `Alt+M`).
+  - Added dedicated Keyboard Shortcuts button (`Keyboard` icon) with quick-access trigger.
+  - Smooth pan, zoom percentage readout, Fit View (`Ctrl+0`), and Reset View (`Ctrl+1`).
+- **Unified Keyboard Shortcuts Engine & Accessibility (`src/lib/keyboardSafety.ts`, `src/components/tree/KeyboardShortcutsModal.tsx`)**:
+  - Pure keyboard action resolver `resolveCanvasKeyboardAction` shielding native inputs, textareas, selects, and contenteditable elements.
+  - Added interactive, accessible `KeyboardShortcutsModal` with categorized command cheat sheet (`?` or `Shift+/`).
+  - Supported shortcuts: `Ctrl+K` (focus search), `Ctrl+Shift+L` / `Alt+L` (auto-layout), `Ctrl+0` (fit view), `Ctrl+1` (reset view), `Ctrl+M` (toggle minimap), `Ctrl+G` (toggle grid), `Ctrl+Shift+D` (toggle diagnostics), `Tab` / `Shift+Tab` (cycle nodes), `Arrow Keys` (nudge selected node with drag transaction).
+- **Pure Graph Diagnostics & Structural Health Engine (`src/lib/graphDiagnostics.ts`)**:
+  - Pure, deterministic analysis checking single-parent invariants, root count (0, 1, or multiple), cycle detection, orphan nodes, invalid relationships according to policy grammar, broken edge references, self-loops, and metadata completeness (missing labels, missing Rule IDs).
+  - Calculates comprehensive structural metrics: `nodeCount`, `edgeCount`, `rootCount`, `leafCount`, `maxDepth`, `orphanedCount`.
+  - Classifies health status: `healthy`, `warning`, `error`.
+- **Interactive Graph Diagnostics Modal & Header Integration (`src/components/tree/GraphDiagnosticsModal.tsx`, `src/components/tree/TreeHeader.tsx`)**:
+  - Upgraded header "Validate" placeholder into a live, reactive Graph Diagnostics button showing health badge (`Healthy`, `X Warn`, or `X Errors`).
+  - Rich diagnostics modal displaying metric ribbons, severity filters (`All`, `Errors`, `Warnings`, `Info`), fix suggestions, and "Inspect" buttons.
+  - "Inspect" button automatically selects the node, pulses it, and centers it in the canvas viewport.
+- **Automated Tests & Quality Verification (`src/tests/day11AdvancedCanvasAndDiagnostics.test.ts`)**:
+  - 22 comprehensive unit tests covering pure graph diagnostics (empty graph, canonical tree, missing root, multi-root, orphans, invalid relationships, cycles, self-loops, metadata audits) and keyboard safety resolvers (shortcuts, input shielding, nudging offset calculation, wraparound cycling).
+  - 100% test pass rate across all 12 test suites (255 / 255 tests passing).
+
 ## [Day 10] - 2026-10-12: Production-Quality Hierarchical Auto-Layout Engine
 
 ### Added
@@ -28,13 +52,18 @@ All notable changes to this project will be documented in this file.
   - Implemented `buildLargeTree(n)` generator creating deterministic acyclic hierarchies conforming to relationship rules.
   - Added 23 comprehensive unit and integration tests covering empty graphs, single nodes, deep trees, wide trees, multiple roots, disconnected components, dynamic node IDs, idempotence, cycle safety, missing endpoint safety, duplicate ID rejection, invalid dimension rejection, 500-node graph layout, one-step Undo, one-step Redo, zero-history no-ops, and search cache stability.
 
+- **Viewport-Fitting Fix & DOM Synchronization (`src/components/tree/TreeCanvas.tsx`)**:
+  - Deferred `fitView` execution until after React Flow receives and renders updated node positions in `nodeLookup` via `layoutPendingFitRef` and post-render effect.
+  - Added explicit container dimensions (`className="w-full h-full"` and `style={{ width: '100%', height: '100%' }}`) to `<ReactFlow>` to prevent flex measurement collapse.
+  - Enriched `applyAutoLayout` return signature with typed metrics payload (`metrics?: AutoLayoutMetrics`).
+
 ### Verification Status
 - Vitest: 11 / 11 test suites passed, 233 / 233 unit tests passed (100% pass rate).
 - TypeScript: `npx tsc --noEmit` passed with 0 errors under strict type checking.
 - Lint: ESLint passed with 0 errors and 0 warnings.
 - Production build: `NODE_ENV=production next build` succeeded.
-- Browser Verification: Pending manual verification by user.
-- Deployment / Live URL: Unverified (automated deployment not performed; manual deployment instructions provided).
+- Browser Verification: Pending manual verification by user (browser automation unavailable in environment).
+- Vercel Deployment: Blocked — credentials/tokens (`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`) not provisioned in environment; manual Vercel deployment instructions provided.
 
 ## [Day 7] - 2026-10-08: Right-Side Properties Inspector & Live Property Editing
 

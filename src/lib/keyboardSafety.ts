@@ -180,3 +180,146 @@ export function resolveUndoRedoAction(ctx: UndoRedoActionContext): UndoRedoActio
   return 'ignore';
 }
 
+/**
+ * Extended canvas action types supported by Day 11 keyboard engine.
+ */
+export type CanvasKeyboardAction =
+  | 'open-shortcuts'
+  | 'focus-search'
+  | 'auto-layout'
+  | 'fit-view'
+  | 'reset-view'
+  | 'toggle-minimap'
+  | 'toggle-grid'
+  | 'toggle-diagnostics'
+  | 'nudge-node-up'
+  | 'nudge-node-down'
+  | 'nudge-node-left'
+  | 'nudge-node-right'
+  | 'cycle-node-next'
+  | 'cycle-node-prev'
+  | 'ignore';
+
+export interface CanvasKeyboardContext {
+  key: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  target?: EventTarget | ElementLike | null;
+  hasSelectedNode?: boolean;
+  hasNodes?: boolean;
+}
+
+/**
+ * Pure resolver for Day 11 advanced keyboard navigation and shortcuts.
+ * Shields all inputs, textareas, selects, and contenteditable elements.
+ */
+export function resolveCanvasKeyboardAction(ctx: CanvasKeyboardContext): CanvasKeyboardAction {
+  if (isKeyboardEventTargetProtected(ctx.target)) {
+    return 'ignore';
+  }
+
+  const isMod = Boolean(ctx.ctrlKey || ctx.metaKey);
+  const key = ctx.key;
+
+  // Shortcuts Dialog (? or Shift+/)
+  if (key === '?' || (key === '/' && ctx.shiftKey)) {
+    return 'open-shortcuts';
+  }
+
+  // Focus Search (Ctrl+K / Cmd+K)
+  if (isMod && key.toLowerCase() === 'k') {
+    return 'focus-search';
+  }
+
+  // Auto-Layout (Ctrl+Shift+L / Cmd+Shift+L or Alt+L)
+  if ((isMod && ctx.shiftKey && key.toLowerCase() === 'l') || (ctx.altKey && key.toLowerCase() === 'l')) {
+    return 'auto-layout';
+  }
+
+  // Toggle Diagnostics (Ctrl+Shift+D / Cmd+Shift+D or Alt+D)
+  if ((isMod && ctx.shiftKey && key.toLowerCase() === 'd') || (ctx.altKey && key.toLowerCase() === 'd')) {
+    return 'toggle-diagnostics';
+  }
+
+  // Fit View (Ctrl+0 / Cmd+0 or Alt+0)
+  if ((isMod || ctx.altKey) && key === '0') {
+    return 'fit-view';
+  }
+
+  // Reset View (Ctrl+1 / Cmd+1 or Alt+1)
+  if ((isMod || ctx.altKey) && key === '1') {
+    return 'reset-view';
+  }
+
+  // Toggle MiniMap (Ctrl+M / Cmd+M or Alt+M)
+  if ((isMod || ctx.altKey) && key.toLowerCase() === 'm') {
+    return 'toggle-minimap';
+  }
+
+  // Toggle Grid (Ctrl+G / Cmd+G or Alt+G)
+  if ((isMod || ctx.altKey) && key.toLowerCase() === 'g') {
+    return 'toggle-grid';
+  }
+
+  // Node Selection Cycle via Tab / Shift+Tab (when canvas has nodes and no input focused)
+  if (key === 'Tab' && ctx.hasNodes) {
+    return ctx.shiftKey ? 'cycle-node-prev' : 'cycle-node-next';
+  }
+
+  // Arrow Key Node Nudging (only if a node is currently selected)
+  if (ctx.hasSelectedNode && !isMod && !ctx.altKey) {
+    if (key === 'ArrowUp') return 'nudge-node-up';
+    if (key === 'ArrowDown') return 'nudge-node-down';
+    if (key === 'ArrowLeft') return 'nudge-node-left';
+    if (key === 'ArrowRight') return 'nudge-node-right';
+  }
+
+  return 'ignore';
+}
+
+/**
+ * Pure helper to calculate new position when nudging a node.
+ */
+export function computeNudgedPosition(
+  current: { x: number; y: number },
+  direction: 'up' | 'down' | 'left' | 'right',
+  step = 20
+): { x: number; y: number } {
+  switch (direction) {
+    case 'up':
+      return { x: current.x, y: current.y - step };
+    case 'down':
+      return { x: current.x, y: current.y + step };
+    case 'left':
+      return { x: current.x - step, y: current.y };
+    case 'right':
+      return { x: current.x + step, y: current.y };
+  }
+}
+
+/**
+ * Pure helper to cycle through node selection in order.
+ */
+export function getNextSelectedNodeId(
+  nodes: Array<{ id: string }>,
+  currentId: string | null,
+  direction: 'next' | 'prev'
+): string | null {
+  if (nodes.length === 0) return null;
+  if (!currentId) return nodes[0].id;
+
+  const currentIndex = nodes.findIndex((n) => n.id === currentId);
+  if (currentIndex === -1) return nodes[0].id;
+
+  if (direction === 'next') {
+    const nextIndex = (currentIndex + 1) % nodes.length;
+    return nodes[nextIndex].id;
+  } else {
+    const prevIndex = (currentIndex - 1 + nodes.length) % nodes.length;
+    return nodes[prevIndex].id;
+  }
+}
+
+
