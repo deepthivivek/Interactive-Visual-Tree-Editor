@@ -83,9 +83,13 @@ export interface TreeUiState {
     nodeId: string;
     incidentEdgeCount: number;
     isRoot: boolean;
+    descendantCount?: number;
   } | null;
   addChildChoiceOpen: boolean;
   statusFeedback: string | null;
+  clipboard: import('../lib/clipboard').SubtreeClipboardData | null;
+  nodeContextMenu: import('../lib/contextMenu').NodeContextMenuState | null;
+  paneContextMenu: import('../lib/contextMenu').PaneContextMenuState | null;
 }
 
 /**
@@ -103,12 +107,16 @@ export interface TreeStoreState {
     nodeId: string;
     incidentEdgeCount: number;
     isRoot: boolean;
+    descendantCount?: number;
   } | null;
   addChildChoiceOpen: boolean;
   statusFeedback: string | null;
   focusPulseNodeId: string | null;
   searchQuery: string;
   matchingNodeIds: Set<string>;
+  clipboard: import('../lib/clipboard').SubtreeClipboardData | null;
+  nodeContextMenu: import('../lib/contextMenu').NodeContextMenuState | null;
+  paneContextMenu: import('../lib/contextMenu').PaneContextMenuState | null;
 
   // Actions
   setNodes: (nodes: TreeNode[]) => void;
@@ -145,7 +153,7 @@ export interface TreeStoreState {
     nodeId: string
   ) => { ok: boolean; duplicatedNode?: TreeNode; message?: string; reason?: string };
   requestDeleteNode: (nodeId: string) => void;
-  confirmDeleteNode: () => boolean;
+  confirmDeleteNode: (mode?: 'single' | 'subtree') => boolean;
   cancelDeleteNode: () => void;
   reparentNode: (
     nodeId: string,
@@ -199,4 +207,24 @@ export interface TreeStoreState {
     reason?: string;
     metrics?: import('../lib/autoLayout').AutoLayoutMetrics;
   };
+
+  // Day 12 Subtree Operations, Clipboard, Collapse/Expand, & Context Menu Actions
+  copySubtree: (rootId?: string) => boolean;
+  pasteSubtree: (
+    targetParentId?: string | null,
+    options?: { cursorPosition?: { x: number; y: number } }
+  ) => { ok: boolean; message: string; pastedCount?: number; newRootId?: string };
+  duplicateSubtree: (rootId?: string) => {
+    ok: boolean;
+    message: string;
+    duplicatedRootId?: string;
+  };
+  toggleNodeCollapse: (nodeId: string) => boolean;
+  expandAllSubtrees: () => void;
+  collapseAllSubtrees: () => void;
+  revealNode: (nodeId: string) => void;
+  deleteSingleNode: (nodeId: string) => boolean;
+  setNodeContextMenu: (menu: import('../lib/contextMenu').NodeContextMenuState | null) => void;
+  setPaneContextMenu: (menu: import('../lib/contextMenu').PaneContextMenuState | null) => void;
+  closeAllContextMenus: () => void;
 }

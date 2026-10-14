@@ -43,6 +43,7 @@ export const SearchBox: React.FC = () => {
     addChildChoiceOpen,
     cancelDeleteNode,
     setAddChildChoiceOpen,
+    revealNode,
   } = useTreeStore();
 
   const viewport = useViewport();
@@ -203,6 +204,9 @@ export const SearchBox: React.FC = () => {
         setAddChildChoiceOpen(false);
       }
 
+      // Day 12 Search Reveal: automatically uncollapse ancestors if target node is in a collapsed subtree
+      revealNode(targetNode.id);
+
       // 3. Select target node and open existing inspector
       dispatch({ type: 'select' });
       if (selectedNodeId !== targetNode.id) {
@@ -294,6 +298,7 @@ export const SearchBox: React.FC = () => {
       addChildChoiceOpen,
       cancelDeleteNode,
       setAddChildChoiceOpen,
+      revealNode,
       setViewport,
       setSelectedNodeId,
       setFocusPulseNodeId,

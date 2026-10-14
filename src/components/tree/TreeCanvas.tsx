@@ -52,8 +52,10 @@ import {
 } from '../../lib/keyboardSafety';
 import { StatusTimerManager } from '../../lib/statusTimer';
 import type { TreeNode, TreeEdge } from '../../types/tree';
+import { computeVisibleGraph } from '../../lib/visibility';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { GraphDiagnosticsModal } from './GraphDiagnosticsModal';
+import { ContextMenu } from './ContextMenu';
 
 import { CustomNode } from './CustomNode';
 
@@ -93,6 +95,15 @@ const TreeCanvasInner: React.FC = () => {
     setStatusFeedback,
     startNodeDrag,
     stopNodeDrag,
+    copySubtree,
+    pasteSubtree,
+    duplicateSubtree,
+    toggleNodeCollapse,
+    deleteSingleNode,
+    deleteSubtree,
+    setNodeContextMenu,
+    setPaneContextMenu,
+    closeAllContextMenus,
   } = useTreeStore();
   const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition, setCenter } =
     useReactFlow();
@@ -141,17 +152,22 @@ const TreeCanvasInner: React.FC = () => {
     }
   }, [statusFeedback, connectionFeedback]);
 
+  // Day 12 Subtree Visibility: compute which nodes/edges are visible based on collapsed states
+  const { visibleNodes, visibleEdges } = useMemo(() => {
+    return computeVisibleGraph(nodes, edges);
+  }, [nodes, edges]);
+
   // Sync selectedNodeId with React Flow selected state
   const flowNodes = useMemo(() => {
-    return nodes.map((node) => ({
+    return visibleNodes.map((node) => ({
       ...node,
       selected: node.id === selectedNodeId,
     }));
-  }, [nodes, selectedNodeId]);
+  }, [visibleNodes, selectedNodeId]);
 
   // Map edges to include dynamic selected styling and direction arrow markers
   const flowEdges = useMemo(() => {
-    return edges.map((edge) => {
+    return visibleEdges.map((edge) => {
       const isSelected = edge.id === selectedEdgeId;
       return {
         ...edge,
@@ -168,7 +184,7 @@ const TreeCanvasInner: React.FC = () => {
         interactionWidth: 20,
       };
     });
-  }, [edges, selectedEdgeId]);
+  }, [visibleEdges, selectedEdgeId]);
 
   // Handle position changes when dragging nodes on canvas
   const onNodesChange: OnNodesChange<TreeNode> = useCallback(
@@ -204,24 +220,27 @@ const TreeCanvasInner: React.FC = () => {
   // Canvas selection click handlers
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: TreeNode) => {
+      closeAllContextMenus();
       setSelectedNodeId(node.id);
       setSelectedEdgeId(null);
     },
-    [setSelectedNodeId, setSelectedEdgeId]
+    [setSelectedNodeId, setSelectedEdgeId, closeAllContextMenus]
   );
 
   const handleEdgeClick = useCallback(
     (_: React.MouseEvent, edge: TreeEdge) => {
+      closeAllContextMenus();
       setSelectedEdgeId(edge.id);
       setSelectedNodeId(null);
     },
-    [setSelectedEdgeId, setSelectedNodeId]
+    [setSelectedEdgeId, setSelectedNodeId, closeAllContextMenus]
   );
 
   const handlePaneClick = useCallback(() => {
+    closeAllContextMenus();
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-  }, [setSelectedNodeId, setSelectedEdgeId]);
+  }, [setSelectedNodeId, setSelectedEdgeId, closeAllContextMenus]);
 
   // Day 8 Node Drag Transaction Handlers
   const handleNodeDragStart = useCallback(() => {
@@ -412,6 +431,44 @@ const TreeCanvasInner: React.FC = () => {
       if (canvasAction === 'toggle-diagnostics') {
         event.preventDefault();
         setDiagnosticsModalOpen((v) => !v);
+        return;
+      }
+
+      if (canvasAction === 'copy-subtree') {
+        event.preventDefault();
+        if (state.selectedNodeId) {
+          state.copySubtree(state.selectedNodeId);
+        }
+        return;
+      }
+
+      if (canvasAction === 'paste-subtree') {
+        event.preventDefault();
+        state.pasteSubtree();
+        return;
+      }
+
+      if (canvasAction === 'duplicate-subtree') {
+        event.preventDefault();
+        if (state.selectedNodeId) {
+          state.duplicateSubtree(state.selectedNodeId);
+        }
+        return;
+      }
+
+      if (canvasAction === 'delete-subtree') {
+        event.preventDefault();
+        if (state.selectedNodeId) {
+          state.confirmDeleteNode('subtree');
+        }
+        return;
+      }
+
+      if (canvasAction === 'toggle-collapse') {
+        event.preventDefault();
+        if (state.selectedNodeId) {
+          state.toggleNodeCollapse(state.selectedNodeId);
+        }
         return;
       }
 
@@ -734,7 +791,7 @@ const TreeCanvasInner: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-5 flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <div className="mt-5 flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 flex-wrap">
                 <button
                   type="button"
                   onClick={cancelDeleteNode}
@@ -744,11 +801,20 @@ const TreeCanvasInner: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={confirmDeleteNode}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md shadow-xs transition cursor-pointer"
+                  onClick={() => confirmDeleteNode('single')}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md transition cursor-pointer"
                 >
-                  Confirm Delete
+                  Delete Node Only
                 </button>
+                {deleteConfirmation.descendantCount && deleteConfirmation.descendantCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => confirmDeleteNode('subtree')}
+                    className="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md shadow-xs transition cursor-pointer"
+                  >
+                    Delete Subtree ({deleteConfirmation.descendantCount + 1} nodes)
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -769,6 +835,28 @@ const TreeCanvasInner: React.FC = () => {
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
+        onNodeContextMenu={(event, node) => {
+          event.preventDefault();
+          setNodeContextMenu({
+            isOpen: true,
+            x: event.clientX,
+            y: event.clientY,
+            nodeId: node.id,
+          });
+        }}
+        onPaneContextMenu={(event) => {
+          event.preventDefault();
+          const flowPos = screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          });
+          setPaneContextMenu({
+            isOpen: true,
+            x: event.clientX,
+            y: event.clientY,
+            flowPosition: flowPos,
+          });
+        }}
         onDragOver={onDragOver}
         onDrop={onDrop}
         nodesConnectable={true}
@@ -1002,6 +1090,9 @@ const TreeCanvasInner: React.FC = () => {
           Mock sample data • Does not represent official regulatory workflows
         </span>
       </div>
+
+      {/* Accessible Context Menu for Nodes and Canvas Pane (Day 12) */}
+      <ContextMenu onFitView={handleFitView} onResetView={handleResetView} />
     </div>
   );
 };

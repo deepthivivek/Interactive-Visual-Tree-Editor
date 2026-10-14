@@ -192,6 +192,11 @@ export type CanvasKeyboardAction =
   | 'toggle-minimap'
   | 'toggle-grid'
   | 'toggle-diagnostics'
+  | 'copy-subtree'
+  | 'paste-subtree'
+  | 'duplicate-subtree'
+  | 'delete-subtree'
+  | 'toggle-collapse'
   | 'nudge-node-up'
   | 'nudge-node-down'
   | 'nudge-node-left'
@@ -209,10 +214,11 @@ export interface CanvasKeyboardContext {
   target?: EventTarget | ElementLike | null;
   hasSelectedNode?: boolean;
   hasNodes?: boolean;
+  hasClipboard?: boolean;
 }
 
 /**
- * Pure resolver for Day 11 advanced keyboard navigation and shortcuts.
+ * Pure resolver for Day 11 and Day 12 advanced keyboard navigation and shortcuts.
  * Shields all inputs, textareas, selects, and contenteditable elements.
  */
 export function resolveCanvasKeyboardAction(ctx: CanvasKeyboardContext): CanvasKeyboardAction {
@@ -241,6 +247,31 @@ export function resolveCanvasKeyboardAction(ctx: CanvasKeyboardContext): CanvasK
   // Toggle Diagnostics (Ctrl+Shift+D / Cmd+Shift+D or Alt+D)
   if ((isMod && ctx.shiftKey && key.toLowerCase() === 'd') || (ctx.altKey && key.toLowerCase() === 'd')) {
     return 'toggle-diagnostics';
+  }
+
+  // Copy Subtree (Ctrl+C / Cmd+C when node selected)
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'c' && ctx.hasSelectedNode) {
+    return 'copy-subtree';
+  }
+
+  // Paste Subtree (Ctrl+V / Cmd+V)
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'v') {
+    return 'paste-subtree';
+  }
+
+  // Duplicate Subtree (Ctrl+D / Cmd+D when node selected)
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'd' && ctx.hasSelectedNode) {
+    return 'duplicate-subtree';
+  }
+
+  // Delete Subtree (Shift+Delete / Shift+Backspace when node selected)
+  if (ctx.shiftKey && (key === 'Delete' || key === 'Backspace') && ctx.hasSelectedNode) {
+    return 'delete-subtree';
+  }
+
+  // Toggle Collapse (Ctrl+E / Cmd+E when node selected)
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'e' && ctx.hasSelectedNode) {
+    return 'toggle-collapse';
   }
 
   // Fit View (Ctrl+0 / Cmd+0 or Alt+0)

@@ -25,6 +25,27 @@ import {
   deleteMetadataPure,
 } from '../lib/nodePropertyOperations';
 import { calculateAutoLayout, type LayoutOptions } from '../lib/autoLayout';
+import {
+  getSubtreeNodeIds,
+  getDescendantCount,
+  deleteSingleNodePure,
+  deleteSubtreePure,
+} from '../lib/subtree';
+import {
+  toggleCollapsePure,
+  expandAllPure,
+  collapseAllPure,
+  revealNodePure,
+} from '../lib/visibility';
+import {
+  createSubtreeClipboardSnapshot,
+  pasteSubtreePure,
+  type SubtreeClipboardData,
+} from '../lib/clipboard';
+import {
+  type NodeContextMenuState,
+  type PaneContextMenuState,
+} from '../lib/contextMenu';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -364,6 +385,9 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
   focusPulseNodeId: null,
   searchQuery: '',
   matchingNodeIds: new Set<string>(),
+  clipboard: null,
+  nodeContextMenu: null,
+  paneContextMenu: null,
 
   // Actions
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
@@ -663,9 +687,9 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
   },
 
   /**
-   * Day 6: Request Delete Node Action.
-   * If non-Root and zero incident edges, deletes immediately without confirmation.
-   * Otherwise, sets deleteConfirmation state for user review.
+   * Day 6/12: Request Delete Node Action.
+   * If non-Root and zero incident edges and zero descendants, deletes immediately without confirmation.
+   * Otherwise, sets deleteConfirmation state for user review with descendantCount.
    */
   requestDeleteNode: (nodeId: string) => {
     const { nodes, edges } = get();
@@ -673,10 +697,11 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
     if (!targetNode) return;
 
     const incidentEdges = getNodeIncidentEdges(nodeId, edges);
+    const descendantCount = getDescendantCount(nodeId, edges);
 
-    // Isolated non-Root node: delete immediately without confirmation
-    if (targetNode.type !== 'root' && incidentEdges.length === 0) {
-      const result = executeDeleteNode(nodeId, nodes, edges);
+    // Isolated non-Root node with no descendants: delete immediately without confirmation
+    if (targetNode.type !== 'root' && incidentEdges.length === 0 && descendantCount === 0) {
+      const result = deleteSingleNodePure(nodeId, nodes, edges);
       set({
         nodes: result.nodes,
         edges: result.edges,
@@ -695,19 +720,36 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
         nodeId,
         incidentEdgeCount: incidentEdges.length,
         isRoot: targetNode.type === 'root',
+        descendantCount,
       },
     });
   },
 
   /**
-   * Day 6: Confirm Delete Node Action.
-   * Confirms deletion of the node pending confirmation, removing incident edges atomically.
+   * Day 6/12: Confirm Delete Node Action.
+   * Supports 'single' (deletes node, children preserved as orphans) or 'subtree' (cascades deletion).
    */
-  confirmDeleteNode: () => {
+  confirmDeleteNode: (mode: 'single' | 'subtree' = 'single') => {
     const { deleteConfirmation, nodes, edges } = get();
     if (!deleteConfirmation) return false;
 
-    const result = executeDeleteNode(deleteConfirmation.nodeId, nodes, edges);
+    if (mode === 'subtree') {
+      const result = deleteSubtreePure(deleteConfirmation.nodeId, nodes, edges);
+      if (!result.ok) return false;
+      set({
+        nodes: result.nodes,
+        edges: result.edges,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        deleteConfirmation: null,
+        addChildChoiceOpen: false,
+        statusFeedback: `Subtree deleted (${result.deletedNodes?.length ?? 1} node(s) removed).`,
+      });
+      return true;
+    }
+
+    const result = deleteSingleNodePure(deleteConfirmation.nodeId, nodes, edges);
+    if (!result.ok) return false;
     set({
       nodes: result.nodes,
       edges: result.edges,
@@ -715,7 +757,7 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       selectedEdgeId: null,
       deleteConfirmation: null,
       addChildChoiceOpen: false,
-      statusFeedback: 'Node deleted.',
+      statusFeedback: 'Node deleted (children preserved).',
     });
     return true;
   },
@@ -1256,6 +1298,180 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
     } finally {
       isLayoutRunning = false;
     }
+  },
+
+  // Day 12 Subtree Operations, Clipboard, Collapse/Expand, & Context Menu Actions
+  copySubtree: (rootId?: string) => {
+    const targetId = rootId ?? get().selectedNodeId;
+    if (!targetId) {
+      set({ statusFeedback: 'No node selected to copy.' });
+      return false;
+    }
+
+    const { nodes, edges } = get();
+    const result = createSubtreeClipboardSnapshot(targetId, nodes, edges);
+    if (!result.ok || !result.data) {
+      set({ statusFeedback: result.reason ?? 'Failed to copy subtree.' });
+      return false;
+    }
+
+    const count = result.data.nodes.length;
+    set({
+      clipboard: result.data,
+      statusFeedback: `Subtree copied to clipboard (${count} node${count > 1 ? 's' : ''}).`,
+    });
+    return true;
+  },
+
+  pasteSubtree: (
+    targetParentId?: string | null,
+    options?: { cursorPosition?: { x: number; y: number } }
+  ) => {
+    const { clipboard, nodes, edges } = get();
+    if (!clipboard) {
+      const msg = 'No subtree in clipboard to paste.';
+      set({ statusFeedback: msg });
+      return { ok: false, message: msg };
+    }
+
+    const effectiveParentId =
+      targetParentId !== undefined ? targetParentId : get().selectedNodeId;
+
+    const result = pasteSubtreePure(clipboard, effectiveParentId, nodes, edges, options);
+    if (!result.ok) {
+      set({ statusFeedback: result.message ?? 'Paste failed.' });
+      return { ok: false, message: result.message ?? 'Paste failed.' };
+    }
+
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      selectedNodeId: result.newRootId ?? null,
+      selectedEdgeId: null,
+      statusFeedback: result.message ?? 'Subtree pasted.',
+    });
+
+    return {
+      ok: true,
+      message: result.message ?? 'Subtree pasted.',
+      pastedCount: result.pastedCount,
+      newRootId: result.newRootId,
+    };
+  },
+
+  duplicateSubtree: (rootId?: string) => {
+    const targetId = rootId ?? get().selectedNodeId;
+    if (!targetId) {
+      const msg = 'No node selected to duplicate.';
+      set({ statusFeedback: msg });
+      return { ok: false, message: msg };
+    }
+
+    const { nodes, edges } = get();
+    const snapshot = createSubtreeClipboardSnapshot(targetId, nodes, edges);
+    if (!snapshot.ok || !snapshot.data) {
+      const msg = snapshot.reason ?? 'Failed to capture subtree.';
+      set({ statusFeedback: msg });
+      return { ok: false, message: msg };
+    }
+
+    const result = pasteSubtreePure(snapshot.data, null, nodes, edges, {
+      defaultOffset: { x: 50, y: 50 },
+    });
+
+    if (!result.ok) {
+      set({ statusFeedback: result.message ?? 'Duplication failed.' });
+      return { ok: false, message: result.message ?? 'Duplication failed.' };
+    }
+
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      selectedNodeId: result.newRootId ?? null,
+      selectedEdgeId: null,
+      statusFeedback: `Duplicated subtree (${result.pastedCount} nodes).`,
+    });
+
+    return {
+      ok: true,
+      message: `Duplicated subtree (${result.pastedCount} nodes).`,
+      duplicatedRootId: result.newRootId,
+    };
+  },
+
+  toggleNodeCollapse: (nodeId: string) => {
+    const { nodes } = get();
+    const result = toggleCollapsePure(nodeId, nodes);
+    if (!result.toggled) {
+      return false;
+    }
+
+    set({
+      nodes: result.nodes,
+      statusFeedback: result.newState ? 'Subtree collapsed.' : 'Subtree expanded.',
+    });
+    return true;
+  },
+
+  expandAllSubtrees: () => {
+    const { nodes } = get();
+    const nextNodes = expandAllPure(nodes);
+    set({
+      nodes: nextNodes,
+      statusFeedback: 'All subtrees expanded.',
+    });
+  },
+
+  collapseAllSubtrees: () => {
+    const { nodes, edges } = get();
+    const nextNodes = collapseAllPure(nodes, edges);
+    set({
+      nodes: nextNodes,
+      statusFeedback: 'All subtrees collapsed.',
+    });
+  },
+
+  revealNode: (nodeId: string) => {
+    const { nodes, edges } = get();
+    const result = revealNodePure(nodeId, nodes, edges);
+    if (result.uncollapsedNodeIds.length > 0) {
+      set({ nodes: result.nodes });
+    }
+  },
+
+  deleteSingleNode: (nodeId: string) => {
+    const { nodes, edges } = get();
+    const result = deleteSingleNodePure(nodeId, nodes, edges);
+    if (!result.ok) return false;
+
+    const { selectedNodeId, selectedEdgeId } = get();
+    const nextSelectedNodeId = selectedNodeId === nodeId ? null : selectedNodeId;
+    const removedEdgeIds = new Set((result.removedEdges ?? []).map((e) => e.id));
+    const nextSelectedEdgeId =
+      selectedEdgeId && removedEdgeIds.has(selectedEdgeId) ? null : selectedEdgeId;
+
+    set({
+      nodes: result.nodes,
+      edges: result.edges,
+      selectedNodeId: nextSelectedNodeId,
+      selectedEdgeId: nextSelectedEdgeId,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      statusFeedback: 'Node deleted.',
+    });
+    return true;
+  },
+
+  setNodeContextMenu: (menu: NodeContextMenuState | null) => {
+    set({ nodeContextMenu: menu, paneContextMenu: null });
+  },
+
+  setPaneContextMenu: (menu: PaneContextMenuState | null) => {
+    set({ paneContextMenu: menu, nodeContextMenu: null });
+  },
+
+  closeAllContextMenus: () => {
+    set({ nodeContextMenu: null, paneContextMenu: null });
   },
     }),
     {

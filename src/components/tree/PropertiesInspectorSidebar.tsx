@@ -183,6 +183,11 @@ export const PropertiesInspectorSidebar: React.FC = () => {
     addNodeTag,
     removeNodeTag,
     deleteSubtree,
+    copySubtree,
+    duplicateSubtree,
+    toggleNodeCollapse,
+    pasteSubtree,
+    clipboard,
   } = useTreeStore();
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
@@ -734,17 +739,54 @@ export const PropertiesInspectorSidebar: React.FC = () => {
                 )}
               </div>
 
-              {/* 2. Duplicate Node */}
-              <div>
+              {/* 2. Subtree & Clipboard Actions (Day 12) */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => duplicateNode(selectedNode.id)}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium cursor-pointer transition shadow-2xs"
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium cursor-pointer transition shadow-2xs"
+                  title="Duplicate only this node"
                 >
                   <Copy className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Duplicate Node</span>
+                  <span>Duplicate</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => copySubtree(selectedNode.id)}
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium cursor-pointer transition shadow-2xs"
+                  title="Copy this node and its entire subtree to clipboard [Ctrl+C]"
+                >
+                  <Copy className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Copy Subtree</span>
                 </button>
               </div>
+
+              {clipboard && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => pasteSubtree(selectedNode.id)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-medium cursor-pointer transition shadow-2xs"
+                    title="Paste clipboard subtree as child of this node [Ctrl+V]"
+                  >
+                    <span>Paste Subtree as Child ({clipboard.nodes.length} nodes)</span>
+                  </button>
+                </div>
+              )}
+
+              {edges.some((e) => e.source === selectedNode.id) && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => toggleNodeCollapse(selectedNode.id)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium cursor-pointer transition shadow-2xs"
+                    title="Toggle subtree visibility [Ctrl+E]"
+                  >
+                    <span>{selectedNode.data?.collapsed ? 'Expand Subtree' : 'Collapse Subtree'}</span>
+                  </button>
+                </div>
+              )}
 
               {/* 3. Delete Node */}
               <div className="pt-2 border-t border-slate-100 space-y-1.5">

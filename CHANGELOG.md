@@ -23,8 +23,8 @@ All notable changes to this project will be documented in this file.
   - Rich diagnostics modal displaying metric ribbons, severity filters (`All`, `Errors`, `Warnings`, `Info`), fix suggestions, and "Inspect" buttons.
   - "Inspect" button automatically selects the node, pulses it, and centers it in the canvas viewport.
 - **Automated Tests & Quality Verification (`src/tests/day11AdvancedCanvasAndDiagnostics.test.ts`)**:
-  - 22 comprehensive unit tests covering pure graph diagnostics (empty graph, canonical tree, missing root, multi-root, orphans, invalid relationships, cycles, self-loops, metadata audits) and keyboard safety resolvers (shortcuts, input shielding, nudging offset calculation, wraparound cycling).
-  - 100% test pass rate across all 12 test suites (255 / 255 tests passing).
+  - 23 comprehensive unit tests covering pure graph diagnostics (empty graph, canonical tree, missing root, multi-root, orphans, invalid relationships, cycles, self-loops, metadata audits) and keyboard safety resolvers (shortcuts, input shielding, nudging offset calculation, wraparound cycling).
+  - 100% test pass rate across all 12 test suites (256 / 256 tests passing).
 
 ## [Day 10] - 2026-10-12: Production-Quality Hierarchical Auto-Layout Engine
 

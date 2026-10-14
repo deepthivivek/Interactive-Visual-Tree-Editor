@@ -40,7 +40,12 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
       { keys: ['Ctrl', 'Z'], description: 'Undo last graph change' },
       { keys: ['Ctrl', 'Shift', 'Z'], description: 'Redo previously undone change' },
       { keys: ['Ctrl', 'Shift', 'L'], description: 'Auto-arrange tree (Dagre layout)' },
-      { keys: ['Del / Backspace'], description: 'Delete selected node (confirm) or edge' },
+      { keys: ['Ctrl', 'C'], description: 'Copy selected node & subtree' },
+      { keys: ['Ctrl', 'V'], description: 'Paste subtree (as child or on canvas)' },
+      { keys: ['Ctrl', 'D'], description: 'Duplicate selected node & subtree' },
+      { keys: ['Ctrl', 'E'], description: 'Toggle subtree collapse / expand' },
+      { keys: ['Del / Backspace'], description: 'Delete selected node (preserves children)' },
+      { keys: ['Shift', 'Delete'], description: 'Delete entire subtree (cascade)' },
     ],
   },
   {

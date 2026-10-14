@@ -8,6 +8,8 @@ import {
   GitBranch,
   Zap,
   CircleHelp,
+  ChevronDown,
+  ChevronUp,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -17,6 +19,7 @@ import {
 } from '../../lib/nodeTypeConfig';
 import type { TreeNodeData } from '../../types/tree';
 import { useTreeStore } from '../../store/treeStore';
+import { getDescendantCount } from '../../lib/subtree';
 
 /**
  * UI mapping from serializable icon identifiers to Lucide React icon components.
@@ -41,6 +44,7 @@ const ICON_MAP: Record<NodeIconId, LucideIcon> = {
  * - React Flow target (top) and source (bottom) handles for sample graph edges
  * - Non-interactive handles (`isConnectable={false}`) preventing premature connection creation
  * - Accessible truncation with title attribute and screen-reader context
+ * - Subtree collapse/expand button with hidden descendant badge
  */
 export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected }) => {
   const nodeData = data as TreeNodeData;
@@ -53,6 +57,11 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
   const isFocusPulse = useTreeStore((state) => state.focusPulseNodeId === id);
   const hasMatches = useTreeStore((state) => state.matchingNodeIds.size > 0);
   const isDimmed = searchQuery.trim().length > 0 && hasMatches && !isMatched;
+
+  const descendantCount = useTreeStore((state) => getDescendantCount(id, state.edges));
+  const hasChildren = useTreeStore((state) => state.edges.some((e) => e.source === id));
+  const toggleNodeCollapse = useTreeStore((state) => state.toggleNodeCollapse);
+  const isCollapsed = Boolean(nodeData?.collapsed);
 
   // Resolve configuration from single source of truth
   const nodeType = type || (typeof nodeData?.type === 'string' ? nodeData.type : 'unknown');
@@ -153,6 +162,42 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
         isConnectable={true}
         className="!w-2.5 !h-2.5 !bg-slate-400 hover:!bg-blue-600 !border-2 !border-white !rounded-full !-bottom-1.5 transition-colors cursor-crosshair"
       />
+
+      {/* Subtree Collapse / Expand Badge (Day 12) */}
+      {hasChildren && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleNodeCollapse(id);
+          }}
+          className={`absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold shadow-xs transition-transform hover:scale-105 cursor-pointer select-none ${
+            isCollapsed
+              ? 'px-2 py-0.5 bg-amber-500 text-white border border-amber-600'
+              : 'opacity-0 group-hover:opacity-90 w-5 h-5 justify-center bg-slate-100 text-slate-600 border border-slate-300 hover:bg-white hover:text-slate-900'
+          }`}
+          title={
+            isCollapsed
+              ? `Subtree collapsed (${descendantCount} hidden descendant${descendantCount > 1 ? 's' : ''}). Click to expand.`
+              : `Click to collapse subtree (${descendantCount} descendant${descendantCount > 1 ? 's' : ''})`
+          }
+          aria-expanded={!isCollapsed}
+          aria-label={
+            isCollapsed
+              ? `Expand subtree of ${label}. ${descendantCount} hidden descendants.`
+              : `Collapse subtree of ${label}`
+          }
+        >
+          {isCollapsed ? (
+            <>
+              <ChevronDown className="w-2.5 h-2.5" />
+              <span>+{descendantCount}</span>
+            </>
+          ) : (
+            <ChevronUp className="w-3 h-3" />
+          )}
+        </button>
+      )}
     </div>
   );
 });
