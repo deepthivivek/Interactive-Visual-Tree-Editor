@@ -12,7 +12,15 @@
 
 import type { TreeNode, TreeEdge, TreeDocument, TreeEdgeData } from '../types/tree';
 import { isPolicyNodeType } from './nodeFactory';
-import { isValidParentChildRelationship } from './relationshipRules';
+import {
+  isValidParentChildRelationship,
+  getRelationshipType,
+} from './relationshipRules';
+import { generateUniqueEdgeId } from './graphOperations';
+import {
+  computeSubtreePasteRootPosition,
+  offsetSubtreePositions,
+} from './placement';
 
 /**
  * Returns the set of node IDs containing `rootId` and all its transitive descendants.
@@ -187,6 +195,220 @@ export function deleteSubtreePure(
     edges: nextEdges,
     deletedNodes,
     removedEdges,
+  };
+}
+
+export interface MoveSubtreeResult {
+  ok: boolean;
+  nodes: TreeNode[];
+  edges: TreeEdge[];
+  message: string;
+  reason?: string;
+  movedSubtreeRootId?: string;
+  newParentId?: string | null;
+  removedEdgeId?: string;
+  newEdgeId?: string;
+}
+
+/**
+ * Pure Structural Subtree Movement (Day 13).
+ *
+ * Reparents an entire subtree under a new parent:
+ * - Preserves all subtree node IDs and payloads
+ * - Preserves all internal edges and internal hierarchy topology
+ * - Removes the former external parent connection
+ * - Creates the new valid parent connection
+ * - Rejects moving a subtree under itself or its descendants
+ * - Rejects invalid hierarchy relationship grammar and cycles
+ * - Adjusts subtree layout coordinates relative to new parent
+ */
+export function moveSubtreeStructurallyPure(
+  subtreeRootId: string,
+  newParentId: string | null,
+  nodes: readonly TreeNode[],
+  edges: readonly TreeEdge[]
+): MoveSubtreeResult {
+  const subtreeRoot = nodes.find((n) => n.id === subtreeRootId);
+  if (!subtreeRoot) {
+    return {
+      ok: false,
+      nodes: [...nodes],
+      edges: [...edges],
+      message: 'Failed to move: subtree root node not found.',
+      reason: 'target-not-found',
+    };
+  }
+
+  // Root node cannot be reparented under another node
+  if (subtreeRoot.type === 'root' && newParentId !== null) {
+    return {
+      ok: false,
+      nodes: [...nodes],
+      edges: [...edges],
+      message: 'Root nodes cannot be moved beneath other parent nodes.',
+      reason: 'root-cannot-have-parent',
+    };
+  }
+
+  const subtreeIds = getSubtreeNodeIds(subtreeRootId, edges);
+
+  // Rejection check: Cannot move beneath itself or any descendant
+  if (newParentId && subtreeIds.has(newParentId)) {
+    return {
+      ok: false,
+      nodes: [...nodes],
+      edges: [...edges],
+      message: 'Cannot move a subtree beneath itself or any of its descendants.',
+      reason: 'cycle-or-self-parenting',
+    };
+  }
+
+  let newParent: TreeNode | undefined;
+  if (newParentId) {
+    newParent = nodes.find((n) => n.id === newParentId);
+    if (!newParent) {
+      return {
+        ok: false,
+        nodes: [...nodes],
+        edges: [...edges],
+        message: 'Destination parent node not found.',
+        reason: 'destination-not-found',
+      };
+    }
+
+    if (newParent.type === 'action') {
+      return {
+        ok: false,
+        nodes: [...nodes],
+        edges: [...edges],
+        message: 'Action nodes cannot accept child connections.',
+        reason: 'action-cannot-have-children',
+      };
+    }
+
+    if (!isValidParentChildRelationship(newParent.type, subtreeRoot.type)) {
+      return {
+        ok: false,
+        nodes: [...nodes],
+        edges: [...edges],
+        message: `Policy rule violation: "${newParent.type}" cannot be parent of "${subtreeRoot.type}".`,
+        reason: 'invalid-relationship',
+      };
+    }
+  }
+
+  // 1. Remove existing incoming external edge to subtreeRootId
+  const oldParentEdge = edges.find((e) => e.target === subtreeRootId);
+  let nextEdges = edges.filter((e) => e.id !== oldParentEdge?.id);
+  let newEdgeId: string | undefined;
+
+  // 2. Add new incoming edge from newParentId if provided
+  if (newParent) {
+    const existingEdgeIds = new Set(nextEdges.map((e) => e.id));
+    newEdgeId = generateUniqueEdgeId(newParent.id, subtreeRoot.id, existingEdgeIds);
+    const relType = getRelationshipType(newParent.type, subtreeRoot.type);
+
+    const connectingEdge: TreeEdge = {
+      id: newEdgeId,
+      source: newParent.id,
+      target: subtreeRoot.id,
+      sourceHandle: 'bottom',
+      targetHandle: 'top',
+      data: {
+        relationshipType: relType || undefined,
+      },
+    };
+    nextEdges = [...nextEdges, connectingEdge];
+  }
+
+  // 3. Compute relative layout repositioning so subtree rests beneath new parent
+  let nextNodes = [...nodes];
+  if (newParent) {
+    const targetPos = computeSubtreePasteRootPosition(
+      subtreeRoot,
+      nodes,
+      nextEdges,
+      { targetParent: newParent }
+    );
+    const dx = targetPos.x - subtreeRoot.position.x;
+    const dy = targetPos.y - subtreeRoot.position.y;
+
+    nextNodes = nodes.map((node) => {
+      if (subtreeIds.has(node.id)) {
+        return {
+          ...node,
+          position: {
+            x: Math.round(node.position.x + dx),
+            y: Math.round(node.position.y + dy),
+          },
+        };
+      }
+      return node;
+    });
+  }
+
+  return {
+    ok: true,
+    nodes: nextNodes,
+    edges: nextEdges,
+    message: newParent
+      ? `Subtree moved under "${newParent.data.label || newParent.id}".`
+      : `Subtree disconnected as standalone hierarchy.`,
+    movedSubtreeRootId: subtreeRootId,
+    newParentId,
+    removedEdgeId: oldParentEdge?.id,
+    newEdgeId,
+  };
+}
+
+export interface MoveSubtreeLayoutResult {
+  ok: boolean;
+  nodes: TreeNode[];
+  movedCount: number;
+  reason?: string;
+}
+
+/**
+ * Pure Visual Subtree Layout Movement (Day 13).
+ *
+ * Shifts the (x, y) coordinates of every node in the subtree by (dx, dy).
+ * Strictly preserves graph topology: zero edges added or removed.
+ */
+export function moveSubtreeLayoutPure(
+  subtreeRootId: string,
+  dx: number,
+  dy: number,
+  nodes: readonly TreeNode[],
+  edges: readonly TreeEdge[]
+): MoveSubtreeLayoutResult {
+  const targetNode = nodes.find((n) => n.id === subtreeRootId);
+  if (!targetNode) {
+    return {
+      ok: false,
+      nodes: [...nodes],
+      movedCount: 0,
+      reason: 'Subtree root node not found',
+    };
+  }
+
+  const subtreeIds = getSubtreeNodeIds(subtreeRootId, edges);
+  const nextNodes = nodes.map((node) => {
+    if (subtreeIds.has(node.id)) {
+      return {
+        ...node,
+        position: {
+          x: Math.round(node.position.x + dx),
+          y: Math.round(node.position.y + dy),
+        },
+      };
+    }
+    return node;
+  });
+
+  return {
+    ok: true,
+    nodes: nextNodes,
+    movedCount: subtreeIds.size,
   };
 }
 

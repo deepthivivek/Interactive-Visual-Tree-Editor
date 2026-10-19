@@ -66,6 +66,7 @@ export interface KeyboardActionContext {
   target?: KeyboardActionTarget | null;
   selection: {
     selectedNodeId: string | null;
+    selectedNodeIds: string[] | null;
     selectedEdgeId: string | null;
   };
   confirmationOpen: boolean;
@@ -117,7 +118,7 @@ export function resolveKeyboardAction(ctx: KeyboardActionContext): KeyboardActio
       return 'ignore';
     }
 
-    if (selection.selectedNodeId) {
+    if (selection.selectedNodeId || (selection.selectedNodeIds && selection.selectedNodeIds.length > 0)) {
       return 'delete-node';
     }
 
@@ -191,6 +192,7 @@ export type CanvasKeyboardAction =
   | 'reset-view'
   | 'toggle-minimap'
   | 'toggle-grid'
+  | 'select-all'
   | 'toggle-diagnostics'
   | 'copy-subtree'
   | 'paste-subtree'
@@ -213,6 +215,7 @@ export interface CanvasKeyboardContext {
   altKey?: boolean;
   target?: EventTarget | ElementLike | null;
   hasSelectedNode?: boolean;
+  selectedNodeCount?: number;
   hasNodes?: boolean;
   hasClipboard?: boolean;
 }
@@ -249,8 +252,13 @@ export function resolveCanvasKeyboardAction(ctx: CanvasKeyboardContext): CanvasK
     return 'toggle-diagnostics';
   }
 
+  // Select All Nodes (Ctrl+A / Cmd+A)
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'a' && ctx.hasNodes) {
+    return 'select-all';
+  }
+
   // Copy Subtree (Ctrl+C / Cmd+C when node selected)
-  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'c' && ctx.hasSelectedNode) {
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'c' && (ctx.hasSelectedNode || (ctx.selectedNodeCount ?? 0) > 0)) {
     return 'copy-subtree';
   }
 
@@ -260,17 +268,17 @@ export function resolveCanvasKeyboardAction(ctx: CanvasKeyboardContext): CanvasK
   }
 
   // Duplicate Subtree (Ctrl+D / Cmd+D when node selected)
-  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'd' && ctx.hasSelectedNode) {
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'd' && (ctx.hasSelectedNode || (ctx.selectedNodeCount ?? 0) > 0)) {
     return 'duplicate-subtree';
   }
 
   // Delete Subtree (Shift+Delete / Shift+Backspace when node selected)
-  if (ctx.shiftKey && (key === 'Delete' || key === 'Backspace') && ctx.hasSelectedNode) {
+  if (ctx.shiftKey && (key === 'Delete' || key === 'Backspace') && (ctx.hasSelectedNode || (ctx.selectedNodeCount ?? 0) > 0)) {
     return 'delete-subtree';
   }
 
   // Toggle Collapse (Ctrl+E / Cmd+E when node selected)
-  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'e' && ctx.hasSelectedNode) {
+  if (isMod && !ctx.shiftKey && key.toLowerCase() === 'e' && (ctx.hasSelectedNode || (ctx.selectedNodeCount ?? 0) > 0)) {
     return 'toggle-collapse';
   }
 
@@ -300,7 +308,7 @@ export function resolveCanvasKeyboardAction(ctx: CanvasKeyboardContext): CanvasK
   }
 
   // Arrow Key Node Nudging (only if a node is currently selected)
-  if (ctx.hasSelectedNode && !isMod && !ctx.altKey) {
+  if ((ctx.hasSelectedNode || (ctx.selectedNodeCount ?? 0) > 0) && !isMod && !ctx.altKey) {
     if (key === 'ArrowUp') return 'nudge-node-up';
     if (key === 'ArrowDown') return 'nudge-node-down';
     if (key === 'ArrowLeft') return 'nudge-node-left';

@@ -52,6 +52,7 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
     title: 'Selection & Search',
     icon: Search,
     shortcuts: [
+      { keys: ['Ctrl', 'A'], description: 'Select all nodes on canvas' },
       { keys: ['/'], description: 'Quick focus search box' },
       { keys: ['Ctrl', 'K'], description: 'Open search query' },
       { keys: ['Tab'], description: 'Cycle forward to next node' },

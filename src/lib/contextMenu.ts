@@ -29,6 +29,7 @@ export type ContextMenuActionId =
   | 'add-child-rule'
   | 'add-child-condition'
   | 'add-child-action'
+  | 'select-subtree'
   | 'copy-subtree'
   | 'paste-subtree-child'
   | 'paste-subtree-pane'
@@ -36,6 +37,9 @@ export type ContextMenuActionId =
   | 'toggle-collapse'
   | 'delete-single'
   | 'delete-subtree'
+  | 'copy-selected'
+  | 'delete-selected'
+  | 'clear-selection'
   | 'add-root'
   | 'add-rule'
   | 'auto-layout'
@@ -62,9 +66,31 @@ export function resolveNodeContextMenuItems(
     hasClipboard: boolean;
     descendantCount: number;
     isCollapsed: boolean;
+    multiSelectedCount?: number;
   }
 ): ContextMenuItem[] {
   const items: ContextMenuItem[] = [];
+
+  // If multiple nodes are selected, prioritize multi-selection bulk actions at the top
+  if (options.multiSelectedCount && options.multiSelectedCount >= 2) {
+    items.push({
+      id: 'copy-selected',
+      label: `Copy Selected Nodes (${options.multiSelectedCount})`,
+      shortcut: 'Ctrl+C',
+    });
+    items.push({
+      id: 'delete-selected',
+      label: `Delete Selected Nodes (${options.multiSelectedCount})`,
+      shortcut: 'Del',
+      danger: true,
+    });
+    items.push({
+      id: 'clear-selection',
+      label: 'Clear Selection',
+      separatorAfter: true,
+    });
+  }
+
   const allowedChildren = ALLOWED_CHILDREN_MAP[node.type] || [];
 
   // 1. Add Child actions based on policy relationship rules
@@ -94,7 +120,12 @@ export function resolveNodeContextMenuItems(
     items[items.length - 1].separatorAfter = true;
   }
 
-  // 2. Clipboard operations
+  // 2. Selection & Clipboard operations
+  items.push({
+    id: 'select-subtree',
+    label: options.descendantCount > 0 ? `Select Subtree (${options.descendantCount + 1} nodes)` : 'Select Subtree',
+  });
+
   items.push({
     id: 'copy-subtree',
     label: options.descendantCount > 0 ? 'Copy Subtree' : 'Copy Node',

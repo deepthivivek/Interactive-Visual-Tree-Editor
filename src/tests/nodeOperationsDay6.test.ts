@@ -331,7 +331,7 @@ describe('Day 6 - Node Operations, Re-parenting, Deletion Confirmation & Keyboar
       const updated = useTreeStore.getState();
       expect(updated.nodes.find((n) => n.id === newNode.id)).toBeUndefined();
       expect(updated.deleteConfirmation).toBeNull();
-      expect(updated.statusFeedback).toBe('Node deleted.');
+      expect(updated.statusFeedback).toBe('Node deleted successfully.');
     });
 
     it('should open confirmation modal when requesting deletion of a connected node', () => {
@@ -349,7 +349,7 @@ describe('Day 6 - Node Operations, Re-parenting, Deletion Confirmation & Keyboar
       expect(state.nodes.find((n) => n.id === connectedNodeId)).toBeDefined();
     });
 
-    it('should require confirmation even for an isolated Root node', () => {
+    it('should require confirmation even for an isolated Root node and delete cleanly upon confirmation', () => {
       const store = useTreeStore.getState();
       const rootNode = store.createNode('root', { x: 100, y: 100 })!;
 
@@ -358,6 +358,12 @@ describe('Day 6 - Node Operations, Re-parenting, Deletion Confirmation & Keyboar
       expect(state.deleteConfirmation).not.toBeNull();
       expect(state.deleteConfirmation?.nodeId).toBe(rootNode.id);
       expect(state.deleteConfirmation?.isRoot).toBe(true);
+
+      const confirmed = useTreeStore.getState().confirmDeleteNode('single');
+      expect(confirmed).toBe(true);
+      const afterState = useTreeStore.getState();
+      expect(afterState.nodes.find((n) => n.id === rootNode.id)).toBeUndefined();
+      expect(afterState.statusFeedback).toBe('Node deleted successfully.');
     });
 
     it('should execute confirmed deletion on confirmDeleteNode', () => {

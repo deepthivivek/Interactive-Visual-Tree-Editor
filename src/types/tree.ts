@@ -118,6 +118,12 @@ export interface TreeStoreState {
   nodeContextMenu: import('../lib/contextMenu').NodeContextMenuState | null;
   paneContextMenu: import('../lib/contextMenu').PaneContextMenuState | null;
 
+  // Day 13 Advanced Enhancements State
+  selectedSubtreeRootId: string | null;
+  selectedNodeIds: string[];
+  checkpoints: import('../lib/checkpoints').GraphCheckpoint[];
+  auditLog: import('../lib/operationAudit').OperationAuditEntry[];
+
   // Actions
   setNodes: (nodes: TreeNode[]) => void;
   setEdges: (edges: TreeEdge[]) => void;
@@ -227,4 +233,42 @@ export interface TreeStoreState {
   setNodeContextMenu: (menu: import('../lib/contextMenu').NodeContextMenuState | null) => void;
   setPaneContextMenu: (menu: import('../lib/contextMenu').PaneContextMenuState | null) => void;
   closeAllContextMenus: () => void;
+
+  // Day 13 Advanced Subtree Selection, Movement, Checkpoints, & Productivity
+  setSelectedSubtreeRootId: (nodeId: string | null) => void;
+  moveSubtreeStructurally: (
+    subtreeRootId: string,
+    newParentId: string | null
+  ) => { ok: boolean; message: string; reason?: string };
+  moveSubtreeLayout: (
+    subtreeRootId: string,
+    dx: number,
+    dy: number
+  ) => { ok: boolean; movedCount: number; message: string };
+  alignSelectedNodes: (
+    nodeIds: string[],
+    axis: import('../lib/layoutProductivity').AlignmentAxis
+  ) => boolean;
+  distributeSelectedNodes: (
+    nodeIds: string[],
+    axis: import('../lib/layoutProductivity').DistributionAxis
+  ) => boolean;
+  createCheckpoint: (name: string, description?: string) => import('../lib/checkpoints').GraphCheckpoint;
+  restoreCheckpoint: (checkpointId: string) => boolean;
+  deleteCheckpoint: (checkpointId: string) => boolean;
+  appendAuditEntry: (
+    operationType: string,
+    status: 'confirmed' | 'rejected' | 'cancelled',
+    affectedNodeIds: string[],
+    affectedEdgeIds: string[],
+    options?: {
+      validationSummaryBefore?: string;
+      validationSummaryAfter?: string;
+      notes?: string;
+    }
+  ) => void;
+  setSelectedNodeIds: (nodeIds: Set<string> | string[]) => void;
+  toggleNodeSelection: (nodeId: string, additive?: boolean) => void;
+  copySelectedNodes: () => boolean;
+  deleteSelectedNodes: () => boolean;
 }

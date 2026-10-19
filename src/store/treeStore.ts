@@ -30,7 +30,24 @@ import {
   getDescendantCount,
   deleteSingleNodePure,
   deleteSubtreePure,
+  moveSubtreeStructurallyPure,
+  moveSubtreeLayoutPure,
 } from '../lib/subtree';
+import {
+  alignNodesPure,
+  distributeNodesPure,
+  type AlignmentAxis,
+  type DistributionAxis,
+} from '../lib/layoutProductivity';
+import {
+  createCheckpointPure,
+  type GraphCheckpoint,
+} from '../lib/checkpoints';
+import {
+  createAuditEntryPure,
+  appendAuditEntryPure,
+  type OperationAuditEntry,
+} from '../lib/operationAudit';
 import {
   toggleCollapsePure,
   expandAllPure,
@@ -40,6 +57,7 @@ import {
 import {
   createSubtreeClipboardSnapshot,
   pasteSubtreePure,
+  MAX_GRAPH_NODES,
   type SubtreeClipboardData,
 } from '../lib/clipboard';
 import {
@@ -388,6 +406,10 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
   clipboard: null,
   nodeContextMenu: null,
   paneContextMenu: null,
+  selectedSubtreeRootId: null,
+  selectedNodeIds: [],
+  checkpoints: [],
+  auditLog: [],
 
   // Actions
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
@@ -400,6 +422,7 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
   setSelectedNodeId: (nodeId: string | null) =>
     set({
       selectedNodeId: nodeId,
+      selectedNodeIds: nodeId ? [nodeId] : [],
       deleteConfirmation: null,
       addChildChoiceOpen: false,
     }),
@@ -413,9 +436,47 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
     set({
       selectedNodeId: null,
       selectedEdgeId: null,
+      selectedNodeIds: [],
       deleteConfirmation: null,
       addChildChoiceOpen: false,
     }),
+  setSelectedNodeIds: (nodeIds: Set<string> | string[]) => {
+    const raw = nodeIds as unknown;
+    const arr: string[] = Array.isArray(raw)
+      ? (raw as string[])
+      : raw instanceof Set
+      ? Array.from(raw as Set<string>)
+      : [];
+    set({
+      selectedNodeIds: arr,
+      selectedNodeId: arr.length === 1 ? arr[0] : null,
+      selectedEdgeId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+    });
+  },
+  toggleNodeSelection: (nodeId: string, additive = false) => {
+    const { selectedNodeIds, selectedNodeId } = get();
+    const rawIds = selectedNodeIds as unknown;
+    const currentArray: string[] = Array.isArray(rawIds)
+      ? (rawIds as string[])
+      : rawIds instanceof Set
+      ? Array.from(rawIds as Set<string>)
+      : [];
+    const base = currentArray.length > 0 ? currentArray : (selectedNodeId ? [selectedNodeId] : []);
+    const nextSet = new Set<string>(additive ? base : []);
+    if (nextSet.has(nodeId)) {
+      nextSet.delete(nodeId);
+    } else {
+      nextSet.add(nodeId);
+    }
+    const arr = Array.from(nextSet);
+    set({
+      selectedNodeIds: arr,
+      selectedNodeId: arr.length === 1 ? arr[0] : null,
+      selectedEdgeId: null,
+    });
+  },
   setFocusPulseNodeId: (id: string | null) => set({ focusPulseNodeId: id }),
   setSearchQueryAndMatches: (query: string, matches: Set<string>) =>
     set({ searchQuery: query, matchingNodeIds: matches }),
@@ -444,6 +505,7 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       nodes: [...nodes, newNode],
       edges: [...edges],
       selectedNodeId: newNode.id,
+      selectedNodeIds: [newNode.id],
     });
 
     return newNode;
@@ -638,6 +700,7 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       nodes: result.nodes,
       edges: result.edges,
       selectedNodeId: result.data!.newChild.id,
+      selectedNodeIds: [result.data!.newChild.id],
       selectedEdgeId: null,
       addChildChoiceOpen: false,
       statusFeedback: `Added ${childType} child.`,
@@ -673,6 +736,7 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       nodes: result.nodes,
       edges: result.edges,
       selectedNodeId: result.data!.duplicatedNode.id,
+      selectedNodeIds: [result.data!.duplicatedNode.id],
       selectedEdgeId: null,
       deleteConfirmation: null,
       addChildChoiceOpen: false,
@@ -702,19 +766,24 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
     // Isolated non-Root node with no descendants: delete immediately without confirmation
     if (targetNode.type !== 'root' && incidentEdges.length === 0 && descendantCount === 0) {
       const result = deleteSingleNodePure(nodeId, nodes, edges);
+      if (!result.ok) {
+        set({ statusFeedback: result.reason ?? 'Failed to delete node.' });
+        return;
+      }
       set({
         nodes: result.nodes,
         edges: result.edges,
         selectedNodeId: null,
+        selectedNodeIds: [],
         selectedEdgeId: null,
         deleteConfirmation: null,
         addChildChoiceOpen: false,
-        statusFeedback: 'Node deleted.',
+        statusFeedback: 'Node deleted successfully.',
       });
       return;
     }
 
-    // Connected node or Root: requires user confirmation
+    // Connected node or Root node: requires user confirmation
     set({
       deleteConfirmation: {
         nodeId,
@@ -733,31 +802,45 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
     const { deleteConfirmation, nodes, edges } = get();
     if (!deleteConfirmation) return false;
 
+    const targetNode = nodes.find((n) => n.id === deleteConfirmation.nodeId);
+    if (!targetNode) {
+      set({ deleteConfirmation: null });
+      return false;
+    }
+
     if (mode === 'subtree') {
       const result = deleteSubtreePure(deleteConfirmation.nodeId, nodes, edges);
-      if (!result.ok) return false;
+      if (!result.ok) {
+        set({ statusFeedback: result.reason ?? 'Failed to delete subtree.' });
+        return false;
+      }
       set({
         nodes: result.nodes,
         edges: result.edges,
         selectedNodeId: null,
+        selectedNodeIds: [],
         selectedEdgeId: null,
         deleteConfirmation: null,
         addChildChoiceOpen: false,
-        statusFeedback: `Subtree deleted (${result.deletedNodes?.length ?? 1} node(s) removed).`,
+        statusFeedback: 'Subtree deleted successfully.',
       });
       return true;
     }
 
     const result = deleteSingleNodePure(deleteConfirmation.nodeId, nodes, edges);
-    if (!result.ok) return false;
+    if (!result.ok) {
+      set({ statusFeedback: result.reason ?? 'Failed to delete node.' });
+      return false;
+    }
     set({
       nodes: result.nodes,
       edges: result.edges,
       selectedNodeId: null,
+      selectedNodeIds: [],
       selectedEdgeId: null,
       deleteConfirmation: null,
       addChildChoiceOpen: false,
-      statusFeedback: 'Node deleted (children preserved).',
+      statusFeedback: 'Node deleted successfully.',
     });
     return true;
   },
@@ -1092,15 +1175,25 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
    */
   deleteSubtree: (nodeId: string) => {
     const { nodes, edges } = get();
-    const result = executeDeleteSubtree(nodeId, nodes, edges);
-    if (!result.ok) {
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) {
+      set({ statusFeedback: 'Node not found.' });
       return false;
     }
 
-    const { selectedNodeId, selectedEdgeId } = get();
+    const result = executeDeleteSubtree(nodeId, nodes, edges);
+    if (!result.ok) {
+      set({ statusFeedback: result.reason ?? 'Failed to delete subtree.' });
+      return false;
+    }
+
+    const { selectedNodeId, selectedEdgeId, selectedNodeIds } = get();
     const deletedNodeIds = new Set(result.data!.deletedNodes.map((n) => n.id));
     const nextSelectedNodeId =
       selectedNodeId && deletedNodeIds.has(selectedNodeId) ? null : selectedNodeId;
+    const nextSelectedNodeIds = (selectedNodeIds || []).filter(
+      (id) => !deletedNodeIds.has(id)
+    );
     const remainingEdgeIds = new Set(result.edges.map((e) => e.id));
     const nextSelectedEdgeId =
       selectedEdgeId && !remainingEdgeIds.has(selectedEdgeId) ? null : selectedEdgeId;
@@ -1109,9 +1202,10 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       nodes: result.nodes,
       edges: result.edges,
       selectedNodeId: nextSelectedNodeId,
+      selectedNodeIds: nextSelectedNodeIds,
       selectedEdgeId: nextSelectedEdgeId,
       deleteConfirmation: null,
-      statusFeedback: `Deleted subtree (${result.data!.deletedNodes.length} nodes).`,
+      statusFeedback: 'Subtree deleted successfully.',
     });
     return true;
   },
@@ -1122,7 +1216,7 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
    * in the current graph. Transient UI state: creates ZERO history entries.
    */
   reconcileSelection: () => {
-    const { nodes, edges, selectedNodeId, selectedEdgeId, deleteConfirmation } = get();
+    const { nodes, edges, selectedNodeId, selectedEdgeId, deleteConfirmation, selectedNodeIds } = get();
     let changed = false;
     let nextNodeId = selectedNodeId;
     let nextEdgeId = selectedEdgeId;
@@ -1141,11 +1235,18 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       changed = true;
     }
 
+    const validNodeIdSet = new Set(nodes.map((n) => n.id));
+    const nextSelectedNodeIds = (selectedNodeIds || []).filter((id) => validNodeIdSet.has(id));
+    if (nextSelectedNodeIds.length !== (selectedNodeIds?.length || 0)) {
+      changed = true;
+    }
+
     if (changed) {
       set({
         selectedNodeId: nextNodeId,
         selectedEdgeId: nextEdgeId,
         deleteConfirmation: nextDeleteConfirm,
+        selectedNodeIds: nextSelectedNodeIds,
       });
     }
   },
@@ -1213,6 +1314,8 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       searchQuery: '',
       matchingNodeIds: new Set<string>(),
       statusFeedback: null,
+      selectedNodeIds: [],
+      selectedSubtreeRootId: null,
     });
     useTreeStore.temporal.getState().clear();
   },
@@ -1319,6 +1422,91 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
     set({
       clipboard: result.data,
       statusFeedback: `Subtree copied to clipboard (${count} node${count > 1 ? 's' : ''}).`,
+    });
+    return true;
+  },
+
+  copySelectedNodes: () => {
+    const { selectedNodeIds, selectedNodeId, nodes, edges } = get();
+    const rawIds = selectedNodeIds as unknown;
+    const currentArray: string[] = Array.isArray(rawIds)
+      ? (rawIds as string[])
+      : rawIds instanceof Set
+      ? Array.from(rawIds as Set<string>)
+      : [];
+    const flowSelectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
+    const ids = Array.from(
+      new Set([...currentArray, ...(selectedNodeId ? [selectedNodeId] : []), ...flowSelectedIds])
+    );
+
+    if (ids.length === 0) {
+      set({ statusFeedback: 'No nodes selected to copy.' });
+      return false;
+    }
+
+    const selectedNodes = nodes.filter((n) => ids.includes(n.id));
+    const selectedEdges = edges.filter(
+      (e) => ids.includes(e.source) && ids.includes(e.target)
+    );
+
+    if (selectedNodes.length > MAX_GRAPH_NODES) {
+      set({ statusFeedback: `Selection exceeds maximum limit of ${MAX_GRAPH_NODES} nodes.` });
+      return false;
+    }
+
+    const clonedNodes: TreeNode[] = JSON.parse(JSON.stringify(selectedNodes));
+    const clonedEdges: TreeEdge[] = JSON.parse(JSON.stringify(selectedEdges));
+
+    const clipboardData = {
+      version: 1 as const,
+      rootNodeId: ids[0],
+      nodes: clonedNodes,
+      edges: clonedEdges,
+      copiedAt: Date.now(),
+    };
+
+    set({
+      clipboard: clipboardData,
+      statusFeedback: `Copied ${clonedNodes.length} selected node(s) to clipboard.`,
+    });
+    return true;
+  },
+
+  deleteSelectedNodes: () => {
+    const { selectedNodeIds, selectedNodeId, nodes, edges } = get();
+    const rawIds = selectedNodeIds as unknown;
+    const currentArray: string[] = Array.isArray(rawIds)
+      ? (rawIds as string[])
+      : rawIds instanceof Set
+      ? Array.from(rawIds as Set<string>)
+      : [];
+    const flowSelectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
+    const ids = Array.from(
+      new Set([...currentArray, ...(selectedNodeId ? [selectedNodeId] : []), ...flowSelectedIds])
+    );
+
+    if (ids.length === 0) {
+      set({ statusFeedback: 'No nodes selected to delete.' });
+      return false;
+    }
+
+    const selectedNodes = nodes.filter((n) => ids.includes(n.id));
+
+    const deleteSet = new Set(ids);
+    const nextNodes = nodes.filter((n) => !deleteSet.has(n.id));
+    const nextEdges = edges.filter(
+      (e) => !deleteSet.has(e.source) && !deleteSet.has(e.target)
+    );
+
+    const actualDeletedCount = selectedNodes.length;
+
+    set({
+      nodes: nextNodes,
+      edges: nextEdges,
+      selectedNodeId: null,
+      selectedNodeIds: [],
+      deleteConfirmation: null,
+      statusFeedback: `${actualDeletedCount} node${actualDeletedCount > 1 ? 's' : ''} deleted successfully.`,
     });
     return true;
   },
@@ -1441,11 +1629,21 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
 
   deleteSingleNode: (nodeId: string) => {
     const { nodes, edges } = get();
-    const result = deleteSingleNodePure(nodeId, nodes, edges);
-    if (!result.ok) return false;
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) {
+      set({ statusFeedback: 'Node not found.' });
+      return false;
+    }
 
-    const { selectedNodeId, selectedEdgeId } = get();
+    const result = deleteSingleNodePure(nodeId, nodes, edges);
+    if (!result.ok) {
+      set({ statusFeedback: result.reason ?? 'Failed to delete node.' });
+      return false;
+    }
+
+    const { selectedNodeId, selectedEdgeId, selectedNodeIds } = get();
     const nextSelectedNodeId = selectedNodeId === nodeId ? null : selectedNodeId;
+    const nextSelectedNodeIds = (selectedNodeIds || []).filter((id) => id !== nodeId);
     const removedEdgeIds = new Set((result.removedEdges ?? []).map((e) => e.id));
     const nextSelectedEdgeId =
       selectedEdgeId && removedEdgeIds.has(selectedEdgeId) ? null : selectedEdgeId;
@@ -1454,10 +1652,11 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       nodes: result.nodes,
       edges: result.edges,
       selectedNodeId: nextSelectedNodeId,
+      selectedNodeIds: nextSelectedNodeIds,
       selectedEdgeId: nextSelectedEdgeId,
       deleteConfirmation: null,
       addChildChoiceOpen: false,
-      statusFeedback: 'Node deleted.',
+      statusFeedback: 'Node deleted successfully.',
     });
     return true;
   },
@@ -1472,6 +1671,104 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
 
   closeAllContextMenus: () => {
     set({ nodeContextMenu: null, paneContextMenu: null });
+  },
+
+  setSelectedSubtreeRootId: (nodeId: string | null) => {
+    set({ selectedSubtreeRootId: nodeId });
+  },
+
+  moveSubtreeStructurally: (subtreeRootId: string, newParentId: string | null) => {
+    const { nodes, edges } = get();
+    const res = moveSubtreeStructurallyPure(subtreeRootId, newParentId, nodes, edges);
+    if (!res.ok) {
+      set({ statusFeedback: res.message });
+      return { ok: false, message: res.message, reason: res.reason };
+    }
+
+    set({
+      nodes: res.nodes,
+      edges: res.edges,
+      statusFeedback: res.message,
+      selectedNodeId: subtreeRootId,
+      selectedSubtreeRootId: subtreeRootId,
+    });
+    return { ok: true, message: res.message };
+  },
+
+  moveSubtreeLayout: (subtreeRootId: string, dx: number, dy: number) => {
+    const { nodes, edges } = get();
+    const res = moveSubtreeLayoutPure(subtreeRootId, dx, dy, nodes, edges);
+    if (!res.ok) {
+      return { ok: false, movedCount: 0, message: res.reason || 'Failed to move subtree layout' };
+    }
+
+    set({
+      nodes: res.nodes,
+      statusFeedback: `Subtree layout shifted (${res.movedCount} nodes).`,
+    });
+    return { ok: true, movedCount: res.movedCount, message: `Moved ${res.movedCount} nodes.` };
+  },
+
+  alignSelectedNodes: (nodeIds: string[], axis: AlignmentAxis) => {
+    const { nodes } = get();
+    const updatedNodes = alignNodesPure(nodeIds, axis, nodes);
+    set({
+      nodes: updatedNodes,
+      statusFeedback: `Aligned ${nodeIds.length} nodes to ${axis}.`,
+    });
+    return true;
+  },
+
+  distributeSelectedNodes: (nodeIds: string[], axis: DistributionAxis) => {
+    const { nodes } = get();
+    const updatedNodes = distributeNodesPure(nodeIds, axis, nodes);
+    set({
+      nodes: updatedNodes,
+      statusFeedback: `Distributed ${nodeIds.length} nodes ${axis}ly.`,
+    });
+    return true;
+  },
+
+  createCheckpoint: (name: string, description?: string) => {
+    const { nodes, edges, checkpoints } = get();
+    const cp = createCheckpointPure(name, nodes, edges, description);
+    set({
+      checkpoints: [cp, ...checkpoints],
+      statusFeedback: `Checkpoint "${cp.name}" saved.`,
+    });
+    return cp;
+  },
+
+  restoreCheckpoint: (checkpointId: string) => {
+    const { checkpoints } = get();
+    const cp = checkpoints.find((c) => c.id === checkpointId);
+    if (!cp) return false;
+
+    set({
+      nodes: JSON.parse(JSON.stringify(cp.nodes)),
+      edges: JSON.parse(JSON.stringify(cp.edges)),
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      selectedSubtreeRootId: null,
+      statusFeedback: `Restored checkpoint "${cp.name}".`,
+    });
+    return true;
+  },
+
+  deleteCheckpoint: (checkpointId: string) => {
+    const { checkpoints } = get();
+    set({
+      checkpoints: checkpoints.filter((c) => c.id !== checkpointId),
+    });
+    return true;
+  },
+
+  appendAuditEntry: (operationType, status, affectedNodeIds, affectedEdgeIds, options) => {
+    const { auditLog } = get();
+    const entry = createAuditEntryPure(operationType, status, affectedNodeIds, affectedEdgeIds, options);
+    set({
+      auditLog: appendAuditEntryPure(auditLog, entry),
+    });
   },
     }),
     {

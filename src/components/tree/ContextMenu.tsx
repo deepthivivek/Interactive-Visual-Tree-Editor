@@ -45,6 +45,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const nodes = useTreeStore((state) => state.nodes);
   const edges = useTreeStore((state) => state.edges);
   const clipboard = useTreeStore((state) => state.clipboard);
+  const selectedNodeIds = useTreeStore((state) => state.selectedNodeIds);
+  const copySelectedNodes = useTreeStore((state) => state.copySelectedNodes);
+  const deleteSelectedNodes = useTreeStore((state) => state.deleteSelectedNodes);
+  const clearSelection = useTreeStore((state) => state.clearSelection);
 
   const addChild = useTreeStore((state) => state.addChild);
   const copySubtree = useTreeStore((state) => state.copySubtree);
@@ -52,8 +56,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const duplicateSubtree = useTreeStore((state) => state.duplicateSubtree);
   const toggleNodeCollapse = useTreeStore((state) => state.toggleNodeCollapse);
   const deleteSingleNode = useTreeStore((state) => state.deleteSingleNode);
+  const requestDeleteNode = useTreeStore((state) => state.requestDeleteNode);
   const deleteSubtree = useTreeStore((state) => state.deleteSubtree);
   const createNode = useTreeStore((state) => state.createNode);
+  const setSelectedSubtreeRootId = useTreeStore(
+    (state) => state.setSelectedSubtreeRootId
+  );
 
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
@@ -73,95 +81,136 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
   const isCollapsed = Boolean(targetNode?.data?.collapsed);
 
+  const multiSelectedCount = useMemo(() => {
+    const raw = selectedNodeIds as unknown;
+    const arr = Array.isArray(raw)
+      ? (raw as string[])
+      : raw instanceof Set
+      ? Array.from(raw as Set<string>)
+      : [];
+    return arr.length;
+  }, [selectedNodeIds]);
+
   const items: ContextMenuItem[] = useMemo(() => {
     return isNodeMenu && targetNode
       ? resolveNodeContextMenuItems(targetNode, {
           hasClipboard: Boolean(clipboard && clipboard.nodes.length > 0),
           descendantCount,
           isCollapsed,
+          multiSelectedCount,
         })
       : isPaneMenu
       ? resolvePaneContextMenuItems({
           hasClipboard: Boolean(clipboard && clipboard.nodes.length > 0),
         })
       : [];
-  }, [isNodeMenu, targetNode, isPaneMenu, clipboard, descendantCount, isCollapsed]);
+  }, [isNodeMenu, targetNode, isPaneMenu, clipboard, descendantCount, isCollapsed, multiSelectedCount]);
+
+  const targetNodeId = targetNode?.id ?? nodeContextMenu?.nodeId ?? null;
 
   const executeAction = useCallback(
-    (item: ContextMenuItem) => {
-      closeAllContextMenus();
+    (e: React.MouseEvent | React.PointerEvent | null, item: ContextMenuItem, explicitNodeId?: string | null) => {
+      e?.stopPropagation();
+      const state = useTreeStore.getState();
+      const resolvedNodeId = explicitNodeId ?? targetNodeId ?? state.nodeContextMenu?.nodeId ?? null;
+      const currentTargetNode = resolvedNodeId
+        ? state.nodes.find((n) => n.id === resolvedNodeId) ?? null
+        : null;
+      const currentPaneMenu = state.paneContextMenu ?? paneContextMenu;
 
       switch (item.id) {
         case 'add-child-rule':
         case 'add-child-condition':
         case 'add-child-action': {
-          if (targetNode && item.childType) {
-            addChild(targetNode.id, item.childType);
+          if (currentTargetNode && item.childType) {
+            state.addChild(currentTargetNode.id, item.childType);
+          }
+          break;
+        }
+
+        case 'select-subtree': {
+          if (currentTargetNode) {
+            state.setSelectedSubtreeRootId(currentTargetNode.id);
           }
           break;
         }
 
         case 'copy-subtree': {
-          if (targetNode) {
-            copySubtree(targetNode.id);
+          if (currentTargetNode) {
+            state.copySubtree(currentTargetNode.id);
           }
           break;
         }
 
         case 'paste-subtree-child': {
-          if (targetNode) {
-            pasteSubtree(targetNode.id);
+          if (currentTargetNode) {
+            state.pasteSubtree(currentTargetNode.id);
           }
           break;
         }
 
         case 'paste-subtree-pane': {
-          if (paneContextMenu?.flowPosition) {
-            pasteSubtree(null, {
-              cursorPosition: paneContextMenu.flowPosition,
+          if (currentPaneMenu?.flowPosition) {
+            state.pasteSubtree(null, {
+              cursorPosition: currentPaneMenu.flowPosition,
             });
           }
           break;
         }
 
         case 'duplicate-subtree': {
-          if (targetNode) {
-            duplicateSubtree(targetNode.id);
+          if (currentTargetNode) {
+            state.duplicateSubtree(currentTargetNode.id);
           }
           break;
         }
 
         case 'toggle-collapse': {
-          if (targetNode) {
-            toggleNodeCollapse(targetNode.id);
+          if (currentTargetNode) {
+            state.toggleNodeCollapse(currentTargetNode.id);
           }
           break;
         }
 
         case 'delete-single': {
-          if (targetNode) {
-            deleteSingleNode(targetNode.id);
+          if (currentTargetNode) {
+            state.requestDeleteNode(currentTargetNode.id);
           }
           break;
         }
 
         case 'delete-subtree': {
-          if (targetNode) {
-            deleteSubtree(targetNode.id);
+          if (currentTargetNode) {
+            state.deleteSubtree(currentTargetNode.id);
           }
           break;
         }
 
+        case 'copy-selected': {
+          state.copySelectedNodes();
+          break;
+        }
+
+        case 'delete-selected': {
+          state.deleteSelectedNodes();
+          break;
+        }
+
+        case 'clear-selection': {
+          state.clearSelection();
+          break;
+        }
+
         case 'add-root': {
-          if (paneContextMenu?.flowPosition) {
-            createNode('root', paneContextMenu.flowPosition);
+          if (currentPaneMenu?.flowPosition) {
+            state.createNode('root', currentPaneMenu.flowPosition);
           }
           break;
         }
 
         case 'add-rule': {
-          if (paneContextMenu?.flowPosition) {
-            createNode('rule', paneContextMenu.flowPosition);
+          if (currentPaneMenu?.flowPosition) {
+            state.createNode('rule', currentPaneMenu.flowPosition);
           }
           break;
         }
@@ -181,23 +230,19 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           break;
         }
       }
+
+      state.closeAllContextMenus();
     },
-    [
-      targetNode,
-      paneContextMenu,
-      addChild,
-      copySubtree,
-      pasteSubtree,
-      duplicateSubtree,
-      toggleNodeCollapse,
-      deleteSingleNode,
-      deleteSubtree,
-      createNode,
-      onFitView,
-      onResetView,
-      closeAllContextMenus,
-    ]
+    [targetNodeId, paneContextMenu, onFitView, onResetView]
   );
+
+  const itemsRef = useRef(items);
+  const focusedIndexRef = useRef(focusedIndex);
+
+  useEffect(() => {
+    itemsRef.current = items;
+    focusedIndexRef.current = focusedIndex;
+  });
 
   // Reset focus index when opened (using queueMicrotask to avoid sync setState in effect)
   useEffect(() => {
@@ -217,39 +262,47 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         return;
       }
 
-      if (items.length === 0) return;
+      const currentItems = itemsRef.current;
+      if (currentItems.length === 0) return;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setFocusedIndex((prev) => {
-          let next = (prev + 1) % items.length;
-          while (items[next]?.disabled && next !== prev) {
-            next = (next + 1) % items.length;
+          let next = (prev + 1) % currentItems.length;
+          while (currentItems[next]?.disabled && next !== prev) {
+            next = (next + 1) % currentItems.length;
           }
           return next;
         });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setFocusedIndex((prev) => {
-          let next = (prev - 1 + items.length) % items.length;
-          while (items[next]?.disabled && next !== prev) {
-            next = (next - 1 + items.length) % items.length;
+          let next = (prev - 1 + currentItems.length) % currentItems.length;
+          while (currentItems[next]?.disabled && next !== prev) {
+            next = (next - 1 + currentItems.length) % currentItems.length;
           }
           return next;
         });
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        const activeItem = items[focusedIndex];
+        const activeItem = currentItems[focusedIndexRef.current];
         if (activeItem && !activeItem.disabled) {
-          executeAction(activeItem);
+          executeAction(null, activeItem, targetNodeId);
         }
       }
     };
 
-    const handlePointerDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        closeAllContextMenus();
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (menuRef.current) {
+        if (target && menuRef.current.contains(target)) {
+          return;
+        }
+        if (typeof e.composedPath === 'function' && e.composedPath().includes(menuRef.current)) {
+          return;
+        }
       }
+      closeAllContextMenus();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -258,7 +311,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('pointerdown', handlePointerDown);
     };
-  }, [isOpen, items, focusedIndex, closeAllContextMenus, executeAction]);
+  }, [isOpen, closeAllContextMenus, executeAction, targetNodeId]);
 
   if (!isOpen) return null;
 
@@ -311,7 +364,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       role="menu"
       aria-label={isNodeMenu ? 'Node context actions' : 'Canvas pane actions'}
       style={{ left: `${x}px`, top: `${y}px` }}
-      className="fixed z-50 min-w-[210px] max-w-[280px] bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in-0 zoom-in-95 duration-100 select-none font-sans"
+      className="fixed z-50 min-w-[210px] max-w-[280px] bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in-0 zoom-in-95 duration-100 select-none font-sans context-menu"
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       {/* Optional header indicating target */}
       {isNodeMenu && targetNode && (
@@ -331,7 +387,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             type="button"
             role="menuitem"
             disabled={item.disabled}
-            onClick={() => executeAction(item)}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              executeAction(e, item, targetNodeId);
+            }}
             onMouseEnter={() => setFocusedIndex(idx)}
             className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition-colors cursor-pointer ${
               item.disabled

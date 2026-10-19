@@ -19,7 +19,7 @@ import {
 } from '../../lib/nodeTypeConfig';
 import type { TreeNodeData } from '../../types/tree';
 import { useTreeStore } from '../../store/treeStore';
-import { getDescendantCount } from '../../lib/subtree';
+import { getDescendantCount, getSubtreeNodeIds } from '../../lib/subtree';
 
 /**
  * UI mapping from serializable icon identifiers to Lucide React icon components.
@@ -71,11 +71,31 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
   // Map icon component safely
   const IconComponent = ICON_MAP[typeConfig.iconId] || CircleHelp;
 
+  const selectedSubtreeRootId = useTreeStore((state) => state.selectedSubtreeRootId);
+  const edges = useTreeStore((state) => state.edges);
+  const isSubtreeSelected = React.useMemo(() => {
+    if (!selectedSubtreeRootId) return false;
+    return getSubtreeNodeIds(selectedSubtreeRootId, edges).has(id);
+  }, [selectedSubtreeRootId, edges, id]);
+
+  const selectedNodeId = useTreeStore((state) => state.selectedNodeId);
+  const selectedNodeIds = useTreeStore((state) => state.selectedNodeIds);
+  const isMultiSelected = React.useMemo(() => {
+    if (!selectedNodeIds) return false;
+    const ids = selectedNodeIds as unknown;
+    if (Array.isArray(ids)) return ids.includes(id);
+    if (ids instanceof Set) return (ids as Set<string>).has(id);
+    return false;
+  }, [selectedNodeIds, id]);
+  const isNodeSelected = selectedNodeId === id || isMultiSelected || Boolean(selected);
+
   let borderAndRingClass = `${typeConfig.styling.cardBorder} ${typeConfig.styling.cardBorderHover} hover:shadow-xs`;
   if (isFocusPulse) {
     borderAndRingClass = `border-blue-500 ring-4 ring-blue-400/80 shadow-md transition-all`;
-  } else if (selected) {
-    borderAndRingClass = `${typeConfig.styling.cardBorderSelected} ${typeConfig.styling.cardRingSelected} shadow-xs`;
+  } else if (isNodeSelected) {
+    borderAndRingClass = `border-blue-600 ring-2 ring-blue-500/80 shadow-md bg-blue-50/20 transition-all`;
+  } else if (isSubtreeSelected) {
+    borderAndRingClass = `border-indigo-500 ring-2 ring-indigo-400 shadow-md bg-indigo-50/25 transition-all`;
   } else if (isMatched) {
     borderAndRingClass = `border-blue-400 ring-2 ring-blue-300 shadow-xs`;
   }
@@ -86,7 +106,7 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
     <div
       tabIndex={0}
       role="treeitem"
-      aria-selected={Boolean(selected)}
+      aria-selected={Boolean(isNodeSelected)}
       aria-label={`${typeConfig.displayLabel}: ${label}${ruleId ? ` (${ruleId})` : ''}`}
       title={label}
       className={`group relative w-[215px] bg-white rounded-lg border transition-all duration-150 shadow-2xs select-none outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${borderAndRingClass} ${dimClass}`}

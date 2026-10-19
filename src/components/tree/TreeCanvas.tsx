@@ -37,6 +37,8 @@ import {
   Trash2,
   Workflow,
   ShieldCheck,
+  Bookmark,
+  Copy,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { isPolicyNodeType } from '../../lib/nodeFactory';
@@ -53,8 +55,12 @@ import {
 import { StatusTimerManager } from '../../lib/statusTimer';
 import type { TreeNode, TreeEdge } from '../../types/tree';
 import { computeVisibleGraph } from '../../lib/visibility';
+import { getSubtreeNodeIds, getSubtreeEdges } from '../../lib/subtree';
+import { computeNodesBoundingBox } from '../../lib/layoutProductivity';
+import { findNodesInSelectionBox } from '../../lib/selectionBox';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { GraphDiagnosticsModal } from './GraphDiagnosticsModal';
+import { CheckpointsModal } from './CheckpointsModal';
 import { ContextMenu } from './ContextMenu';
 
 import { CustomNode } from './CustomNode';
@@ -104,6 +110,10 @@ const TreeCanvasInner: React.FC = () => {
     setNodeContextMenu,
     setPaneContextMenu,
     closeAllContextMenus,
+    selectedNodeIds,
+    setSelectedNodeIds,
+    copySelectedNodes,
+    deleteSelectedNodes,
   } = useTreeStore();
   const { zoomIn, zoomOut, fitView, setViewport, screenToFlowPosition, setCenter } =
     useReactFlow();
@@ -121,8 +131,24 @@ const TreeCanvasInner: React.FC = () => {
   const [miniMapVisible, setMiniMapVisible] = useState(true);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [checkpointsModalOpen, setCheckpointsModalOpen] = useState(false);
   const [ariaFeedback, setAriaFeedback] = useState<string>('');
   const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
+
+  // Drag-box (rubber-band) multi-selection state
+  const [isBoxSelecting, setIsBoxSelecting] = useState(false);
+  const [selectionBox, setSelectionBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+  const boxStartFlowPosRef = useRef<{ x: number; y: number } | null>(null);
+  const didBoxSelectRef = useRef(false);
+
+  const mouseFlowPosRef = useRef<{ x: number; y: number } | null>(null);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      mouseFlowPosRef.current = pos;
+    },
+    [screenToFlowPosition]
+  );
 
   // Ref tracking edge currently undergoing reconnection to support ignoreEdgeId during live validation
   const reconnectingEdgeIdRef = useRef<string | null>(null);
@@ -157,13 +183,24 @@ const TreeCanvasInner: React.FC = () => {
     return computeVisibleGraph(nodes, edges);
   }, [nodes, edges]);
 
-  // Sync selectedNodeId with React Flow selected state
+  // Sync selectedNodeId and selectedNodeIds with React Flow selected state
   const flowNodes = useMemo(() => {
+    const rawIds = selectedNodeIds as unknown;
+    const selectedSet = new Set<string>(
+      Array.isArray(rawIds)
+        ? (rawIds as string[])
+        : rawIds instanceof Set
+        ? Array.from(rawIds as Set<string>)
+        : []
+    );
+    if (selectedNodeId) {
+      selectedSet.add(selectedNodeId);
+    }
     return visibleNodes.map((node) => ({
       ...node,
-      selected: node.id === selectedNodeId,
+      selected: selectedSet.has(node.id),
     }));
-  }, [visibleNodes, selectedNodeId]);
+  }, [visibleNodes, selectedNodeId, selectedNodeIds]);
 
   // Map edges to include dynamic selected styling and direction arrow markers
   const flowEdges = useMemo(() => {
@@ -219,10 +256,15 @@ const TreeCanvasInner: React.FC = () => {
 
   // Canvas selection click handlers
   const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: TreeNode) => {
+    (e: React.MouseEvent, node: TreeNode) => {
       closeAllContextMenus();
-      setSelectedNodeId(node.id);
-      setSelectedEdgeId(null);
+      const additive = e.ctrlKey || e.metaKey || e.shiftKey;
+      if (additive) {
+        useTreeStore.getState().toggleNodeSelection(node.id, true);
+      } else {
+        setSelectedNodeId(node.id);
+        setSelectedEdgeId(null);
+      }
     },
     [setSelectedNodeId, setSelectedEdgeId, closeAllContextMenus]
   );
@@ -238,9 +280,91 @@ const TreeCanvasInner: React.FC = () => {
 
   const handlePaneClick = useCallback(() => {
     closeAllContextMenus();
-    setSelectedNodeId(null);
-    setSelectedEdgeId(null);
-  }, [setSelectedNodeId, setSelectedEdgeId, closeAllContextMenus]);
+    if (didBoxSelectRef.current) {
+      didBoxSelectRef.current = false;
+      return;
+    }
+    clearSelection();
+  }, [clearSelection, closeAllContextMenus]);
+
+  // Drag-box multi-selection event handlers on pane
+  const handlePaneMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only initiate box select on primary left click when clicking background pane (not interactive widgets, menus, or dialogs)
+      const target = e.target as HTMLElement | null;
+      if (
+        e.button !== 0 ||
+        !target ||
+        target.closest('.react-flow__node') ||
+        target.closest('.react-flow__controls') ||
+        target.closest('[role="menu"]') ||
+        target.closest('.context-menu') ||
+        target.closest('[role="alertdialog"]') ||
+        target.closest('[role="dialog"]')
+      ) {
+        return;
+      }
+      closeAllContextMenus();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+      const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+      boxStartFlowPosRef.current = flowPos;
+      didBoxSelectRef.current = false;
+      setIsBoxSelecting(true);
+      setSelectionBox({ startX: clientX, startY: clientY, endX: clientX, endY: clientY });
+    },
+    [screenToFlowPosition, closeAllContextMenus]
+  );
+
+  const handlePaneMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isBoxSelecting || !boxStartFlowPosRef.current) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      setSelectionBox((prev) => (prev ? { ...prev, endX: clientX, endY: clientY } : null));
+
+      if (selectionBox) {
+        const deltaX = Math.abs(clientX - selectionBox.startX);
+        const deltaY = Math.abs(clientY - selectionBox.startY);
+        if (deltaX > 5 || deltaY > 5) {
+          didBoxSelectRef.current = true;
+        }
+      }
+
+      // Calculate matching nodes in box
+      const currentFlowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const startPos = boxStartFlowPosRef.current;
+
+      const matchedIds = findNodesInSelectionBox(
+        {
+          startX: startPos.x,
+          startY: startPos.y,
+          endX: currentFlowPos.x,
+          endY: currentFlowPos.y,
+        },
+        nodes
+      );
+
+      setSelectedNodeIds(matchedIds);
+    },
+    [isBoxSelecting, selectionBox, nodes, screenToFlowPosition, setSelectedNodeIds]
+  );
+
+  const handlePaneMouseUp = useCallback(() => {
+    if (isBoxSelecting) {
+      setIsBoxSelecting(false);
+      setSelectionBox(null);
+      boxStartFlowPosRef.current = null;
+      // Allow pane click cycle to complete without clearing box selection
+      setTimeout(() => {
+        didBoxSelectRef.current = false;
+      }, 100);
+    }
+  }, [isBoxSelecting]);
 
   // Day 8 Node Drag Transaction Handlers
   const handleNodeDragStart = useCallback(() => {
@@ -338,6 +462,37 @@ const TreeCanvasInner: React.FC = () => {
         return;
       }
 
+      // Extract comprehensive selection list (combines selectedNodeId, selectedNodeIds, and flow node.selected)
+      const rawIds = state.selectedNodeIds as unknown;
+      const selectedIdList: string[] = Array.isArray(rawIds)
+        ? [...(rawIds as string[])]
+        : rawIds instanceof Set
+        ? Array.from(rawIds as Set<string>)
+        : [];
+      if (state.selectedNodeId && !selectedIdList.includes(state.selectedNodeId)) {
+        selectedIdList.push(state.selectedNodeId);
+      }
+      for (const n of state.nodes) {
+        if (n.selected && !selectedIdList.includes(n.id)) {
+          selectedIdList.push(n.id);
+        }
+      }
+      const hasAnySelected = selectedIdList.length > 0;
+
+      // Handle delete confirmation modal keyboard interactions
+      if (state.deleteConfirmation && !isKeyboardEventTargetProtected(target)) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          state.cancelDeleteNode();
+          return;
+        }
+        if (event.key === 'Enter' || event.key === 'Delete' || event.key === 'Backspace') {
+          event.preventDefault();
+          state.confirmDeleteNode(event.shiftKey ? 'subtree' : 'single');
+          return;
+        }
+      }
+
       // 2. Day 6 Core Graph Deletion / Escape actions
       const action = resolveKeyboardAction({
         key: event.key,
@@ -348,6 +503,7 @@ const TreeCanvasInner: React.FC = () => {
         },
         selection: {
           selectedNodeId: state.selectedNodeId,
+          selectedNodeIds: selectedIdList,
           selectedEdgeId: state.selectedEdgeId,
         },
         confirmationOpen: Boolean(state.deleteConfirmation),
@@ -355,9 +511,7 @@ const TreeCanvasInner: React.FC = () => {
 
       if (action === 'delete-node') {
         event.preventDefault();
-        if (state.selectedNodeId) {
-          state.requestDeleteNode(state.selectedNodeId);
-        }
+        state.deleteSelectedNodes();
         return;
       } else if (action === 'delete-edge') {
         event.preventDefault();
@@ -374,7 +528,7 @@ const TreeCanvasInner: React.FC = () => {
           state.cancelDeleteNode();
         } else if (state.addChildChoiceOpen) {
           state.setAddChildChoiceOpen(false);
-        } else if (state.selectedNodeId || state.selectedEdgeId) {
+        } else if (hasAnySelected || state.selectedEdgeId) {
           state.clearSelection();
         }
         return;
@@ -388,7 +542,8 @@ const TreeCanvasInner: React.FC = () => {
         shiftKey: event.shiftKey,
         altKey: event.altKey,
         target,
-        hasSelectedNode: Boolean(state.selectedNodeId),
+        hasSelectedNode: hasAnySelected,
+        selectedNodeCount: selectedIdList.length,
         hasNodes: state.nodes.length > 0,
       });
 
@@ -434,49 +589,66 @@ const TreeCanvasInner: React.FC = () => {
         return;
       }
 
+      if (canvasAction === 'select-all') {
+        event.preventDefault();
+        state.setSelectedNodeIds(state.nodes.map((n) => n.id));
+        return;
+      }
+
       if (canvasAction === 'copy-subtree') {
         event.preventDefault();
-        if (state.selectedNodeId) {
-          state.copySubtree(state.selectedNodeId);
+        if (selectedIdList.length >= 2) {
+          state.copySelectedNodes();
+        } else if (selectedIdList.length === 1) {
+          state.copySubtree(selectedIdList[0]);
         }
         return;
       }
 
       if (canvasAction === 'paste-subtree') {
         event.preventDefault();
-        state.pasteSubtree();
+        const cursorPosition =
+          mouseFlowPosRef.current ??
+          screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+        state.pasteSubtree(null, { cursorPosition });
         return;
       }
 
       if (canvasAction === 'duplicate-subtree') {
         event.preventDefault();
-        if (state.selectedNodeId) {
-          state.duplicateSubtree(state.selectedNodeId);
+        const targetId = selectedIdList[0];
+        if (targetId) {
+          state.duplicateSubtree(targetId);
         }
         return;
       }
 
       if (canvasAction === 'delete-subtree') {
         event.preventDefault();
-        if (state.selectedNodeId) {
+        const targetId = selectedIdList[0];
+        if (state.deleteConfirmation) {
           state.confirmDeleteNode('subtree');
+        } else if (targetId) {
+          state.deleteSubtree(targetId);
         }
         return;
       }
 
       if (canvasAction === 'toggle-collapse') {
         event.preventDefault();
-        if (state.selectedNodeId) {
-          state.toggleNodeCollapse(state.selectedNodeId);
+        const targetId = selectedIdList[0];
+        if (targetId) {
+          state.toggleNodeCollapse(targetId);
         }
         return;
       }
 
       if (canvasAction === 'cycle-node-next' || canvasAction === 'cycle-node-prev') {
         event.preventDefault();
+        const currentId = selectedIdList[0] ?? null;
         const nextId = getNextSelectedNodeId(
           state.nodes,
-          state.selectedNodeId,
+          currentId,
           canvasAction === 'cycle-node-next' ? 'next' : 'prev'
         );
         if (nextId) {
@@ -493,13 +665,14 @@ const TreeCanvasInner: React.FC = () => {
           | 'down'
           | 'left'
           | 'right';
-        const currentNode = state.nodes.find((n) => n.id === state.selectedNodeId);
-        if (currentNode) {
-          const newPos = computeNudgedPosition(currentNode.position, direction, 20);
+        if (selectedIdList.length > 0) {
+          const targetIdSet = new Set(selectedIdList);
           state.startNodeDrag();
           state.setNodes(
             state.nodes.map((n) =>
-              n.id === currentNode.id ? { ...n, position: newPos } : n
+              targetIdSet.has(n.id)
+                ? { ...n, position: computeNudgedPosition(n.position, direction, 20) }
+                : n
             )
           );
           state.stopNodeDrag();
@@ -510,7 +683,7 @@ const TreeCanvasInner: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleAutoLayout, handleFitView, handleResetView]);
+  }, [handleAutoLayout, handleFitView, handleResetView, screenToFlowPosition]);
 
   // Day 11 Custom Event Listeners
   useEffect(() => {
@@ -723,7 +896,26 @@ const TreeCanvasInner: React.FC = () => {
   );
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-slate-50/60 select-none">
+    <div
+      className="w-full h-full relative overflow-hidden bg-slate-50/60 select-none"
+      onMouseDown={handlePaneMouseDown}
+      onMouseMove={handlePaneMouseMove}
+      onMouseUp={handlePaneMouseUp}
+    >
+      {/* Rubber-band drag selection box SVG overlay */}
+      {isBoxSelecting && selectionBox && (() => {
+        const x = Math.min(selectionBox.startX, selectionBox.endX);
+        const y = Math.min(selectionBox.startY, selectionBox.endY);
+        const width = Math.abs(selectionBox.endX - selectionBox.startX);
+        const height = Math.abs(selectionBox.endY - selectionBox.startY);
+        return (
+          <div
+            className="absolute z-40 pointer-events-none border border-blue-500 bg-blue-500/10 rounded-xs"
+            style={{ left: x, top: y, width, height }}
+          />
+        );
+      })()}
+
       {/* Live Accessibility Status Announcement */}
       <div className="sr-only" role="status" aria-live="polite">
         {ariaFeedback}
@@ -825,6 +1017,7 @@ const TreeCanvasInner: React.FC = () => {
       <ReactFlow
         className="w-full h-full"
         style={{ width: '100%', height: '100%' }}
+        onMouseMove={handleMouseMove}
         nodes={flowNodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
@@ -877,6 +1070,7 @@ const TreeCanvasInner: React.FC = () => {
         selectionOnDrag={false}
         nodesDraggable={true}
         elementsSelectable={true}
+        multiSelectionKeyCode={['Control', 'Meta']}
         deleteKeyCode={null}
         defaultEdgeOptions={{
           type: 'smoothstep',
@@ -1061,7 +1255,26 @@ const TreeCanvasInner: React.FC = () => {
         >
           <Keyboard className="w-4 h-4" />
         </button>
+
+        <div className="w-px h-4 bg-slate-200 mx-0.5" />
+
+        {/* Checkpoints Trigger (Day 13) */}
+        <button
+          type="button"
+          onClick={() => setCheckpointsModalOpen(true)}
+          className="p-1.5 text-slate-500 hover:text-slate-800 rounded hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 transition"
+          aria-label="Graph Checkpoints"
+          title="Named Graph Checkpoints"
+        >
+          <Bookmark className="w-4 h-4" />
+        </button>
       </div>
+
+      {/* Checkpoints Modal (Day 13) */}
+      <CheckpointsModal
+        isOpen={checkpointsModalOpen}
+        onClose={() => setCheckpointsModalOpen(false)}
+      />
 
       {/* Keyboard Shortcuts Reference Dialog (Day 11) */}
       <KeyboardShortcutsModal
@@ -1090,6 +1303,62 @@ const TreeCanvasInner: React.FC = () => {
           Mock sample data • Does not represent official regulatory workflows
         </span>
       </div>
+
+      {/* Floating Multi-Selection Action Toolbar */}
+      {(() => {
+        const rawIds = selectedNodeIds as unknown;
+        const count = Array.isArray(rawIds)
+          ? rawIds.length
+          : rawIds instanceof Set
+          ? rawIds.size
+          : 0;
+        if (count < 2) return null;
+
+        return (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl rounded-xl px-4 py-2.5 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
+            <div className="flex items-center gap-2 pr-2 border-r border-slate-200">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
+                {count}
+              </span>
+              <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                nodes selected
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => copySelectedNodes()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 transition shadow-2xs"
+                title="Copy all selected nodes [Ctrl+C]"
+              >
+                <Copy className="w-3.5 h-3.5 text-slate-500" />
+                <span>Copy Selected</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => deleteSelectedNodes()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 transition shadow-2xs"
+                title="Delete all selected nodes [Del]"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                <span>Delete Selected</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => clearSelection()}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 transition"
+                title="Deselect all nodes"
+              >
+                <X className="w-3.5 h-3.5 text-slate-400" />
+                <span>Clear</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Accessible Context Menu for Nodes and Canvas Pane (Day 12) */}
       <ContextMenu onFitView={handleFitView} onResetView={handleResetView} />
