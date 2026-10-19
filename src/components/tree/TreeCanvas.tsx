@@ -61,6 +61,7 @@ import { findNodesInSelectionBox } from '../../lib/selectionBox';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { GraphDiagnosticsModal } from './GraphDiagnosticsModal';
 import { CheckpointsModal } from './CheckpointsModal';
+import { ValidationPanel } from './ValidationPanel';
 import { ContextMenu } from './ContextMenu';
 
 import { CustomNode } from './CustomNode';
@@ -132,6 +133,7 @@ const TreeCanvasInner: React.FC = () => {
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [checkpointsModalOpen, setCheckpointsModalOpen] = useState(false);
+  const [validationPanelOpen, setValidationPanelOpen] = useState(false);
   const [ariaFeedback, setAriaFeedback] = useState<string>('');
   const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
 
@@ -696,6 +698,9 @@ const TreeCanvasInner: React.FC = () => {
     const handleTriggerDiagnostics = () => {
       setDiagnosticsModalOpen(true);
     };
+    const handleTriggerValidation = () => {
+      setValidationPanelOpen((prev) => !prev);
+    };
     const handleFocusNode = (e: Event) => {
       const customEvent = e as CustomEvent<{ nodeId: string }>;
       const nodeId = customEvent.detail?.nodeId;
@@ -713,12 +718,14 @@ const TreeCanvasInner: React.FC = () => {
     window.addEventListener('tree:trigger-autolayout', handleTriggerLayout);
     window.addEventListener('tree:trigger-shortcuts', handleTriggerShortcuts);
     window.addEventListener('tree:trigger-diagnostics', handleTriggerDiagnostics);
+    window.addEventListener('tree:trigger-validation', handleTriggerValidation);
     window.addEventListener('tree:focus-node', handleFocusNode);
 
     return () => {
       window.removeEventListener('tree:trigger-autolayout', handleTriggerLayout);
       window.removeEventListener('tree:trigger-shortcuts', handleTriggerShortcuts);
       window.removeEventListener('tree:trigger-diagnostics', handleTriggerDiagnostics);
+      window.removeEventListener('tree:trigger-validation', handleTriggerValidation);
       window.removeEventListener('tree:focus-node', handleFocusNode);
     };
   }, [handleAutoLayout, setCenter]);
@@ -1030,6 +1037,9 @@ const TreeCanvasInner: React.FC = () => {
         onPaneClick={handlePaneClick}
         onNodeContextMenu={(event, node) => {
           event.preventDefault();
+          event.stopPropagation();
+          setSelectedNodeId(node.id);
+          setSelectedEdgeId(null);
           setNodeContextMenu({
             isOpen: true,
             x: event.clientX,
@@ -1039,6 +1049,7 @@ const TreeCanvasInner: React.FC = () => {
         }}
         onPaneContextMenu={(event) => {
           event.preventDefault();
+          event.stopPropagation();
           const flowPos = screenToFlowPosition({
             x: event.clientX,
             y: event.clientY,
@@ -1286,6 +1297,21 @@ const TreeCanvasInner: React.FC = () => {
       <GraphDiagnosticsModal
         isOpen={diagnosticsModalOpen}
         onClose={() => setDiagnosticsModalOpen(false)}
+        onFocusNode={(nodeId) => {
+          const targetNode = nodes.find((n) => n.id === nodeId);
+          if (targetNode) {
+            setCenter(targetNode.position.x + 120, targetNode.position.y + 40, {
+              zoom: 1,
+              duration: 350,
+            });
+          }
+        }}
+      />
+
+      {/* Graph Validation & Quality Panel (Day 14) */}
+      <ValidationPanel
+        isOpen={validationPanelOpen}
+        onClose={() => setValidationPanelOpen(false)}
         onFocusNode={(nodeId) => {
           const targetNode = nodes.find((n) => n.id === nodeId);
           if (targetNode) {

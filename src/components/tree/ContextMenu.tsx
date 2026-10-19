@@ -25,7 +25,7 @@ import {
   clampMenuPosition,
   type ContextMenuItem,
 } from '../../lib/contextMenu';
-import { getDescendantCount } from '../../lib/subtree';
+import { getDescendantCount, getSubtreeNodeIds } from '../../lib/subtree';
 
 interface ContextMenuProps {
   onFitView?: () => void;
@@ -130,6 +130,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
         case 'select-subtree': {
           if (currentTargetNode) {
+            const subtreeIds = Array.from(getSubtreeNodeIds(currentTargetNode.id, state.edges));
+            state.setSelectedNodeIds(subtreeIds);
             state.setSelectedSubtreeRootId(currentTargetNode.id);
           }
           break;
@@ -174,7 +176,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
         case 'delete-single': {
           if (currentTargetNode) {
-            state.requestDeleteNode(currentTargetNode.id);
+            state.deleteSingleNode(currentTargetNode.id);
           }
           break;
         }
@@ -306,10 +308,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('pointerdown', handlePointerDown);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('pointerdown', handlePointerDown);
     };
   }, [isOpen, closeAllContextMenus, executeAction, targetNodeId]);
 
@@ -359,16 +360,20 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   };
 
   return (
-    <div
-      ref={menuRef}
-      role="menu"
-      aria-label={isNodeMenu ? 'Node context actions' : 'Canvas pane actions'}
-      style={{ left: `${x}px`, top: `${y}px` }}
-      className="fixed z-50 min-w-[210px] max-w-[280px] bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in-0 zoom-in-95 duration-100 select-none font-sans context-menu"
-      onPointerDown={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
+      {/* Overlay to catch outside clicks */}
+      <div className="fixed inset-0 z-40" onClick={closeAllContextMenus} />
+      
+      <div
+        ref={menuRef}
+        role="menu"
+        aria-label={isNodeMenu ? 'Node context actions' : 'Canvas pane actions'}
+        style={{ left: `${x}px`, top: `${y}px` }}
+        className="fixed z-50 min-w-[210px] max-w-[280px] bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in-0 zoom-in-95 duration-100 select-none font-sans context-menu"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
       {/* Optional header indicating target */}
       {isNodeMenu && targetNode && (
         <div className="px-3 py-1.5 border-b border-slate-100 mb-1 text-[11px] font-semibold text-slate-800 bg-slate-50/70 truncate flex items-center justify-between">
@@ -394,6 +399,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               e.stopPropagation();
             }}
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               executeAction(e, item, targetNodeId);
             }}
@@ -425,6 +431,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           )}
         </React.Fragment>
       ))}
-    </div>
+      </div>
+    </>
   );
 };

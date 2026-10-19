@@ -20,6 +20,7 @@ import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/tree
 import { SearchBox } from './SearchBox';
 import { runGraphDiagnostics } from '../../lib/graphDiagnostics';
 import { exportTreeDocument } from '../../lib/graphOperations';
+import { evaluateExportGuard } from '../../lib/exportGuard';
 
 export const TreeHeader: React.FC = () => {
   const { loadSampleTree, undo, redo } = useTreeStore();
@@ -30,6 +31,13 @@ export const TreeHeader: React.FC = () => {
   const diagnostics = useMemo(() => runGraphDiagnostics(nodes, edges), [nodes, edges]);
 
   const handleExportJson = () => {
+    const exportCheck = evaluateExportGuard(nodes, edges);
+    if (!exportCheck.allowed) {
+      useTreeStore.getState().setStatusFeedback(exportCheck.reason ?? 'Cannot export invalid graph.');
+      window.dispatchEvent(new CustomEvent('tree:trigger-validation'));
+      return;
+    }
+
     const doc = exportTreeDocument(nodes, edges);
     const jsonStr = JSON.stringify(doc, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -181,6 +189,20 @@ export const TreeHeader: React.FC = () => {
         >
           <Keyboard className="w-3.5 h-3.5 text-slate-500" />
           <span className="hidden xl:inline">Shortcuts</span>
+        </button>
+
+        {/* Graph Validation & Quality Trigger (Day 14) */}
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('tree:trigger-validation'));
+          }}
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 transition shadow-2xs cursor-pointer"
+          title="Graph Validation & Quality Panel"
+          aria-label="Validation & Quality Panel"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden xl:inline">Validation</span>
         </button>
 
         {/* JSON / Export Action */}

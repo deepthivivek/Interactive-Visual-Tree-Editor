@@ -152,4 +152,48 @@ describe('ContextMenu Actions End-to-End Store Operations', () => {
     expect(useTreeStore.getState().nodeContextMenu).toBeNull();
     expect(useTreeStore.getState().paneContextMenu).toBeNull();
   });
+
+  it('correctly executes deleteSingleNode directly on connected node', () => {
+    const rootNode = useTreeStore.getState().nodes[0];
+    act(() => {
+      useTreeStore.getState().addChild(rootNode.id, 'rule');
+    });
+
+    const nodes = useTreeStore.getState().nodes;
+    expect(nodes.length).toBe(2);
+    const childId = nodes[1].id;
+
+    // Direct deleteSingleNode from context menu item 'delete-single'
+    act(() => {
+      useTreeStore.getState().deleteSingleNode(rootNode.id);
+    });
+
+    const remainingNodes = useTreeStore.getState().nodes;
+    expect(remainingNodes.length).toBe(1);
+    expect(remainingNodes[0].id).toBe(childId);
+    expect(useTreeStore.getState().edges.length).toBe(0);
+  });
+
+  it('correctly selects full subtree when select-subtree is triggered', () => {
+    const rootNode = useTreeStore.getState().nodes[0];
+    act(() => {
+      useTreeStore.getState().addChild(rootNode.id, 'rule');
+    });
+    const ruleNode = useTreeStore.getState().nodes[1];
+    act(() => {
+      useTreeStore.getState().addChild(ruleNode.id, 'condition');
+    });
+
+    expect(useTreeStore.getState().nodes.length).toBe(3);
+
+    act(() => {
+      const { edges } = useTreeStore.getState();
+      const subtreeIds = [rootNode.id, ruleNode.id, useTreeStore.getState().nodes[2].id];
+      useTreeStore.getState().setSelectedNodeIds(subtreeIds);
+      useTreeStore.getState().setSelectedSubtreeRootId(rootNode.id);
+    });
+
+    expect(useTreeStore.getState().selectedNodeIds).toHaveLength(3);
+    expect(useTreeStore.getState().selectedSubtreeRootId).toBe(rootNode.id);
+  });
 });
