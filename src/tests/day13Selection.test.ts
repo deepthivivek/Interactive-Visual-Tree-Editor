@@ -448,5 +448,45 @@ describe('Day 13: Drag-Box Multi-Selection Engine (`src/lib/selectionBox.ts`)', 
     expect(paneItems.some((i) => i.id === 'paste-subtree-pane')).toBe(true);
     expect(paneItems.some((i) => i.id === 'add-root')).toBe(true);
   });
+
+  it('guarantees copying exactly 4 selected nodes from a 10-node tree copies and pastes exactly 4 nodes', () => {
+    useTreeStore.getState().resetToSampleData();
+    const initialNodes = useTreeStore.getState().nodes;
+    expect(initialNodes.length).toBe(10);
+
+    // Simulate stale selected: true flags on remaining nodes
+    useTreeStore.setState({
+      nodes: initialNodes.map((n, idx) => ({ ...n, selected: idx >= 4 })),
+    });
+
+    // Explicitly select 4 specific nodes
+    const fourIds = ['root-policy-hierarchy', 'rule-finra-2210', 'cond-finra-2210', 'act-finra-2210'];
+    useTreeStore.getState().setSelectedNodeIds(fourIds);
+    expect(useTreeStore.getState().selectedNodeIds).toHaveLength(4);
+
+    // Copy selected nodes
+    const copyOk = useTreeStore.getState().copySelectedNodes();
+    expect(copyOk).toBe(true);
+
+    const clipboard = useTreeStore.getState().clipboard;
+    expect(clipboard).not.toBeNull();
+    // CRITICAL: Must be exactly 4 nodes, NOT 10 nodes!
+    expect(clipboard!.nodes).toHaveLength(4);
+    expect(clipboard!.nodes.map((n) => n.id).sort()).toEqual(fourIds.slice().sort());
+
+    // Paste the 4 copied nodes
+    const pasteRes = useTreeStore.getState().pasteSubtree(null, {
+      cursorPosition: { x: 800, y: 800 },
+    });
+    expect(pasteRes.ok).toBe(true);
+    // CRITICAL: Must have pasted exactly 4 nodes!
+    expect(pasteRes.pastedCount).toBe(4);
+
+    const afterPasteNodes = useTreeStore.getState().nodes;
+    expect(afterPasteNodes.length).toBe(14); // 10 original + 4 pasted = 14
+
+    // Newly pasted root node should be the current selection
+    expect(useTreeStore.getState().selectedNodeId).toBe(pasteRes.newRootId);
+  });
 });
 

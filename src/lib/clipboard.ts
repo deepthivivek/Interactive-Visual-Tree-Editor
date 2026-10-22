@@ -96,6 +96,7 @@ export interface PasteSubtreeResult {
   nodes: TreeNode[];
   edges: TreeEdge[];
   newRootId?: string;
+  newPastedNodeIds?: string[];
   pastedCount?: number;
   attached?: boolean;
   message?: string;
@@ -264,6 +265,7 @@ export function pasteSubtreePure(
     nodes: [...nodes, ...newNodes],
     edges: finalEdges,
     newRootId,
+    newPastedNodeIds: newNodes.map((n) => n.id),
     pastedCount: incomingCount,
     attached,
     message: feedbackMessage,

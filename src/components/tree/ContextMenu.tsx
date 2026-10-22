@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Workflow,
   AlertTriangle,
+  X,
 } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import {
@@ -329,6 +330,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       case 'add-child-action':
         return <Zap className="w-3.5 h-3.5 text-emerald-500" />;
       case 'copy-subtree':
+      case 'copy-selected':
         return <Copy className="w-3.5 h-3.5 text-slate-500" />;
       case 'paste-subtree-child':
       case 'paste-subtree-pane':
@@ -343,7 +345,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         );
       case 'delete-single':
       case 'delete-subtree':
+      case 'delete-selected':
         return <Trash2 className="w-3.5 h-3.5 text-red-500" />;
+      case 'clear-selection':
+        return <X className="w-3.5 h-3.5 text-slate-400" />;
       case 'add-root':
         return <Layers className="w-3.5 h-3.5 text-blue-500" />;
       case 'add-rule':

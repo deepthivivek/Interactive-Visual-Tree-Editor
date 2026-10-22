@@ -1405,6 +1405,17 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
 
   // Day 12 Subtree Operations, Clipboard, Collapse/Expand, & Context Menu Actions
   copySubtree: (rootId?: string) => {
+    const { selectedNodeIds } = get();
+    const rawIds = selectedNodeIds as unknown;
+    const currentArray: string[] = Array.isArray(rawIds)
+      ? (rawIds as string[])
+      : rawIds instanceof Set
+      ? Array.from(rawIds as Set<string>)
+      : [];
+    if (!rootId && currentArray.length >= 2) {
+      return get().copySelectedNodes();
+    }
+
     const targetId = rootId ?? get().selectedNodeId;
     if (!targetId) {
       set({ statusFeedback: 'No node selected to copy.' });
@@ -1434,10 +1445,14 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       : rawIds instanceof Set
       ? Array.from(rawIds as Set<string>)
       : [];
-    const flowSelectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
-    const ids = Array.from(
-      new Set([...currentArray, ...(selectedNodeId ? [selectedNodeId] : []), ...flowSelectedIds])
-    );
+    let ids: string[];
+    if (currentArray.length > 0) {
+      ids = currentArray;
+    } else if (selectedNodeId) {
+      ids = [selectedNodeId];
+    } else {
+      ids = nodes.filter((n) => n.selected).map((n) => n.id);
+    }
 
     if (ids.length === 0) {
       set({ statusFeedback: 'No nodes selected to copy.' });
@@ -1480,10 +1495,14 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       : rawIds instanceof Set
       ? Array.from(rawIds as Set<string>)
       : [];
-    const flowSelectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
-    const ids = Array.from(
-      new Set([...currentArray, ...(selectedNodeId ? [selectedNodeId] : []), ...flowSelectedIds])
-    );
+    let ids: string[];
+    if (currentArray.length > 0) {
+      ids = currentArray;
+    } else if (selectedNodeId) {
+      ids = [selectedNodeId];
+    } else {
+      ids = nodes.filter((n) => n.selected).map((n) => n.id);
+    }
 
     if (ids.length === 0) {
       set({ statusFeedback: 'No nodes selected to delete.' });

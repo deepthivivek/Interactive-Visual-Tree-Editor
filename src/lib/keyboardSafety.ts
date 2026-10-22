@@ -66,7 +66,7 @@ export interface KeyboardActionContext {
   target?: KeyboardActionTarget | null;
   selection: {
     selectedNodeId: string | null;
-    selectedNodeIds: string[] | null;
+    selectedNodeIds?: string[] | null;
     selectedEdgeId: string | null;
   };
   confirmationOpen: boolean;

@@ -1,0 +1,1029 @@
+# DAY 15 — Enterprise-Grade Versioned JSON Import/Export, Data Integrity, Security, and Reliability
+
+## PROJECT CONTEXT
+
+I am building an **Interactive Visual Tree Editor** for designing, editing, validating, managing, saving, and exporting business-rule and decision workflows.
+
+The goal is a professional, reliable, company-usable workflow editor—not a basic demonstration. Day 15 must strengthen data integrity and JSON import/export without breaking any functionality completed in Days 1–14.
+
+This editor currently designs and reviews business-rule workflows. Do not claim it executes business decisions, integrates with enterprise systems, or provides production-grade security unless those capabilities are genuinely implemented and verified.
+
+The project uses the existing repository's architecture, which may include Next.js App Router, strict TypeScript, `@xyflow/react`, Zustand, Zundo, Tailwind CSS, Lucide, and Vitest. Inspect the actual repository and package versions before making assumptions.
+
+**Your task is to implement Day 15 in the existing project, not create a new application or merely explain how to implement it.**
+
+---
+
+# PART 1 — GLOBAL RULES
+
+## 1. Inspect the existing repository first
+
+Before changing code:
+
+1. Inspect the project structure, package configuration, installed dependencies, and relevant source files.
+2. Inspect the graph store, node and edge types, ID-generation mechanisms, relationship validation, structural validation, history configuration, persistence, notifications, checkpoint functionality, export guard, JSON-related components, and existing test fixtures.
+3. Inspect existing tests and determine how history batching, validation freshness, notification Undo, and viewport fitting currently work.
+4. Check the installed Zod major version and use APIs compatible with that version.
+5. Run baseline tests, lint, and production build when feasible. Record actual results and distinguish existing failures from new regressions.
+6. Inspect the actual Day 1–14 implementation and documented requirements before making changes.
+
+There is a previously reported inconsistency concerning Help, Tour, and Onboarding:
+- One report said those components were removed.
+- A later report said they were restored.
+
+Resolve this by inspecting the actual repository and the agreed requirements. Do not arbitrarily remove or restore these features. Preserve the intended existing behavior.
+
+## 2. Preserve the existing application
+
+- Implement only today's agreed scope.
+- Preserve verified Day 1–14 functionality.
+- Use the smallest safe changes possible.
+- Do not rewrite the application, redesign unrelated screens, or refactor unrelated code.
+- Do not reset Git, discard user changes, or perform destructive operations.
+- Do not create a second JSON system when an existing component or service can be safely extended.
+- Do not install unnecessary dependencies. Zod is the only permitted new dependency if it is genuinely missing.
+- Do not create duplicate validation functions, duplicate fixtures, or redundant state.
+- Never claim code, tests, or features are verified unless they have actually been inspected or executed.
+
+## 3. Code quality
+
+- Use strict TypeScript.
+- Do not use `any`, unsafe type assertions, or blanket error suppression to bypass type errors.
+- Prefer explicit types, discriminated unions, exhaustive switches, and safe runtime validation.
+- Keep pure business logic in `src/lib`, independent of React components.
+- Separate persistent graph-document state from transient UI state.
+- Reuse the existing architecture and naming conventions where practical.
+- Do not add backend services, remote databases, cloud import, or server autosave.
+
+---
+
+# PART 2 — GRAPH MODEL AND INVARIANTS
+
+The editor contains four node types:
+
+- `Root`
+- `Rule`
+- `Condition`
+- `Action`
+
+Use the actual node and edge types from the repository.
+
+## 4. Relationship rules
+
+The agreed default relationship design is:
+
+- Root → Rule
+- Rule → Condition
+- Rule → Action
+- Condition → Action
+- Action has no children.
+
+Centralize relationship decisions in:
+
+`src/lib/relationshipRules.ts`
+
+Reuse this centralized logic wherever applicable, including connections, graph operations, validation, import, duplication, and paste.
+
+Reject:
+
+- Self-connections.
+- Cycles.
+- Duplicate edges.
+- Invalid node-type relationships.
+- A second parent for a node.
+- Invalid edge references.
+
+A valid completed tree must have:
+
+- Exactly one Root.
+- A Root with no parent.
+- Exactly one valid parent for every non-root node.
+- No cycles.
+- No invalid relationships or references.
+
+**Important distinction:** The editor may temporarily contain an incomplete or invalid graph during editing. Do not prevent ordinary node creation merely because the entire graph is not yet a valid completed tree.
+
+Apply the agreed strict structural-validation policy to imported files.
+
+## 5. IDs and collapsed nodes
+
+- Every node ID must be unique after every node-creating operation.
+- Inspect the actual ID generator before implementing reseeding.
+- Imported IDs such as `node-7` and `node-100` must not cause collisions when the user subsequently adds, duplicates, pastes, or creates a child node.
+- If a counter or generator needs reseeding, perform it as part of the successful import update.
+- Collapsed descendants remain in the graph. They must not be falsely reported as orphaned or missing merely because they are hidden.
+- The collapsed state belongs in `node.data.collapsed`, following the existing data model.
+
+## 6. History and persistence requirements
+
+History should contain graph-document changes only, principally nodes and edges. Follow the existing Zundo configuration and Day 8 batch mechanism.
+
+Preserve these history expectations:
+
+- Selection or copying: zero history entries.
+- A single node drag: one history entry on drag end.
+- Auto Layout: one history entry.
+- Subtree paste: one history entry.
+- Collapse or expand: one history entry.
+- Successful JSON import: exactly one history entry.
+- Failed JSON import: zero history entries.
+- Viewport fitting: zero history entries.
+- Clearing stale UI state: zero history entries.
+
+Local persistence may include settings, but JSON export/import contains only the graph document. Do not persist undo history. Restored persisted data starts with fresh history.
+
+Keep the existing regression workflow working:
+
+**Drag → Connect → Edit → Undo → Export JSON**
+
+Also preserve the earlier verified Drag → Connect, Drag → Connect → Edit, and Drag → Connect → Edit → Undo workflows.
+
+---
+
+# PART 3 — DAY 15 OBJECTIVE
+
+Implement safe, deterministic, versioned JSON export and import with a professional dialog.
+
+Create or update:
+
+`src/lib/json.ts`
+
+This module must contain the pure document serialization, normalization, validation pipeline, version handling, error mapping, and related helpers. Adapt function signatures to the existing codebase where necessary while preserving the specified behavior.
+
+The JSON module must not depend on React components or mutate the live graph store.
+
+---
+
+# PART 4 — VERSIONED JSON DOCUMENT
+
+## 7. Document format
+
+Use this versioned format:
+
+    {
+      "version": 1,
+      "nodes": [],
+      "edges": []
+    }
+
+The top-level object must contain the supported document version and graph arrays.
+
+Define and document:
+
+- `CURRENT_VERSION = 1`
+- `SUPPORTED_VERSIONS`
+- `MAX_IMPORT_BYTES`, approximately 5 MiB
+- `MAX_IMPORT_NODES`, approximately 5,000
+
+Use named constants rather than scattering limits throughout the code.
+
+The precise size-limit implementation must use encoded byte length, not JavaScript character count.
+
+An unsupported future version must fail with a clear message such as:
+
+"This file was created by a newer version of this editor."
+
+Missing, malformed, or incorrectly typed versions must have their own actionable error messages.
+
+A version supplied as the string `"1"` must not silently be accepted as the integer `1`.
+
+## 8. Strict Zod schemas
+
+Define strict Zod schemas for:
+
+- The top-level document.
+- Nodes.
+- Edges.
+- Required node fields.
+- Required edge fields.
+- Node type and edge structure.
+- Supported metadata and parameter shapes.
+
+Unknown keys must be rejected and the unexpected key must be identified in the error.
+
+Check the installed Zod major version before coding. Use the correct APIs for that version rather than assuming Zod v3 or v4.
+
+Do not weaken the schemas just to make existing tests pass.
+
+Use the actual project node and edge model, but distinguish the serialized document schema from runtime-only React Flow fields.
+
+---
+
+# PART 5 — PURE JSON MODULE
+
+## 9. Serialization and normalization helpers
+
+Implement appropriately typed helpers, including:
+
+- `toDocumentNode`
+- `toDocumentEdge`
+- `normalizeDocument`
+- `exportGraph`
+- `importGraph`
+- `getExportFilename`
+
+You may introduce additional small, well-named pure helpers when needed.
+
+### Export normalization
+
+`toDocumentNode` and `toDocumentEdge` must strip runtime/UI fields such as:
+
+- `selected`
+- `dragging`
+- `measured`
+- `width`
+- `height`
+- `hidden`
+- `resizing`
+
+Do not strip legitimate document fields merely because their names resemble runtime properties. Follow the actual data model.
+
+Export must include only the graph document, not viewport state, selection, menus, transient UI state, undo history, or other runtime information.
+
+### Import normalization
+
+- Remove supported runtime-only fields from imported data.
+- Record their removal as a non-blocking note.
+- Do not report harmless runtime-field removal as an error.
+- Apply documented schema defaults safely.
+- Preserve imported node IDs exactly. Never silently regenerate imported IDs.
+- Keep legitimate user data.
+- Do not silently discard arbitrary unknown fields unless the specified schema explicitly classifies them as removable runtime fields.
+
+Normalization must be idempotent:
+
+`normalize(normalize(document))` must deep-equal `normalize(document)`.
+
+## 10. Stable deterministic export
+
+For the same graph state, export must produce byte-identical JSON.
+
+Enforce all of the following:
+
+- Nodes remain in store order.
+- Edges remain in store order.
+- Do not sort nodes or edges.
+- Object keys follow a fixed, documented schema order.
+- Indentation is exactly two spaces.
+- The exported text ends with exactly the intended trailing newline.
+- Runtime/UI fields are excluded.
+- The version is included.
+- Serialization does not mutate the live graph.
+
+A graph exported twice without changes must produce identical text.
+
+Use the same deterministic serializer for the preview, Copy, and Download paths.
+
+## 11. Export filename
+
+Implement:
+
+`getExportFilename(date: Date)`
+
+The date must be injected, not fetched internally, so tests remain deterministic.
+
+Example:
+
+`tree-editor-20261021-1530.json`
+
+Use a consistent local-time or UTC convention, document it, and test it.
+
+Empty-graph export is permitted if the existing export guard permits it. Provide an appropriate informational note.
+
+Inspect the actual validator and report whether an empty graph can be imported. Do not assume that exportability implies importability.
+
+---
+
+# PART 6 — SAFE IMPORT PIPELINE
+
+## 12. Pipeline order
+
+Import must follow a clear, documented pipeline:
+
+1. Check empty or whitespace-only input.
+2. Strip a leading BOM when present.
+3. Enforce encoded-byte size limits.
+4. Parse JSON safely.
+5. Require a top-level object.
+6. Validate enough source-version information to choose a migration.
+7. Reject missing, invalid, or unsupported versions with the correct errors.
+8. Apply the supported migration for the source version.
+9. Validate the current version's strict Zod schema.
+10. Normalize the document.
+11. Validate node types, node data, edge data, IDs, and references.
+12. Apply centralized `relationshipRules.ts` validation.
+13. Detect cycles.
+14. Run structural validation.
+15. Separate blocking errors from non-blocking warnings.
+16. Produce a fully validated graph ready for atomic application.
+
+Adjust the internal ordering only when necessary to safely identify the source version before schema validation. Document the actual ordering.
+
+**Never mutate the current graph during this pipeline.**
+
+If any blocking error occurs, return an error result without touching the store.
+
+## 13. Warnings versus blocking errors
+
+This rule overrides any generic instruction that would reject every structural-validation issue.
+
+- Issues with severity `error` or `critical` block import.
+- Issues with severity `warning` do not block import.
+- Successful imports containing warnings must display a summary such as: `Imported with 1 warning`.
+- Use the real validator's severity representation. Do not invent severity fields or hard-code individual issue names.
+- Preserve the validator's useful warning details for display.
+- Do not convert an error into a warning to make an import succeed.
+
+Round-trip guarantees apply to valid graphs.
+
+Day 14's export guard may allow a graph with validation errors to be exported. Such a file can then be rejected on import with readable explanations.
+
+There is no draft-import mode and no partial-import mode.
+
+## 14. Migration registry
+
+Create a small, typed migration registry keyed by source version.
+
+- Include an identity migration for version 1.
+- Each migration must be a pure function.
+- Migrations must run before current-version document validation.
+- Do not invent legacy formats or pretend unsupported versions are migratable.
+- Future versions above `CURRENT_VERSION` must be rejected.
+- Make adding a future migration straightforward without redesigning the pipeline.
+
+## 15. Import result types
+
+Define a discriminated union similar to:
+
+    type ImportResult =
+      | {
+          ok: true;
+          graph: ImportedGraph;
+          notes: string[];
+          warnings: ValidationWarning[];
+        }
+      | {
+          ok: false;
+          errors: ImportError[];
+        };
+
+Adapt `ImportedGraph` and `ValidationWarning` to the real project types.
+
+Define an `ImportError` type with:
+
+- `stage`
+- `code`
+- Optional `path`
+- Optional `line`
+- Optional `column`
+- `message`
+
+Stages must cover:
+
+- `parse`
+- `schema`
+- `version`
+- `normalize`
+- `relationships`
+- `cycles`
+- `structure`
+
+Provide an exhaustive `IMPORT_ERROR_MESSAGES` catalogue keyed by error code. Each catalogue entry must contain:
+
+- `title`
+- `why`
+- `howToFix`
+
+Adding a new error code must require adding its user-facing explanation; use TypeScript exhaustiveness checking to enforce this.
+
+Every displayed error must provide an understandable next step.
+
+Map Zod issue paths into readable paths, for example:
+
+`nodes[3].data.label`
+
+Where the JSON parser exposes useful line and column information, include it. Do not invent line or column numbers when they cannot be determined.
+
+Limit the visible error list to 20 entries and report the remaining count, for example:
+
+`And 8 more errors.`
+
+Do not discard the full diagnostic information from the internal result merely because the UI caps displayed errors.
+
+## 16. Input guards
+
+Before expensive parsing and validation, implement explicit guards for:
+
+- Empty input.
+- Whitespace-only input.
+- Input exceeding `MAX_IMPORT_BYTES`.
+- Leading BOM.
+- Non-object top-level JSON.
+- Node count exceeding `MAX_IMPORT_NODES`.
+
+Each failure must have an appropriate error code and readable message.
+
+Do not use a naive string-length check as the byte limit. Use an appropriate UTF-8 byte-length calculation.
+
+A BOM may be stripped with a note if appropriate, or handled according to the documented policy. It must not produce a confusing generic parser error.
+
+For oversized files, avoid unnecessarily parsing the entire document first.
+
+## 17. Prototype-pollution protection
+
+Treat imported JSON as untrusted input.
+
+- Reject or safely strip `__proto__`, `constructor`, and `prototype` keys inside metadata and parameter maps according to the documented schema policy.
+- Prefer safe object construction, validated entries, or null-prototype dictionaries where appropriate.
+- Do not merge untrusted objects into sensitive application objects using unsafe generic merge operations.
+- Prevent prototype-pollution behavior in both normalization and application.
+- Do not evaluate imported content.
+- Do not render imported text as HTML.
+- Do not log full imported payloads unnecessarily.
+
+Add tests demonstrating that unsafe keys cannot alter object prototypes or application behavior.
+
+---
+
+# PART 7 — VALIDATION AND EXPORT GUARD INTEGRATION
+
+## 18. Reuse existing validation
+
+Inspect and reuse the existing Day 14 validator, validation panel, issue navigation, and export guard.
+
+- Do not implement a second independent set of business-rule validation rules.
+- Import must use the actual centralized relationship rules.
+- Structural validation must distinguish blocking issues from warnings.
+- Respect the actual validator's severity model.
+- Preserve useful existing validation messages and issue paths.
+- Do not bypass the export guard through the JSON dialog.
+
+If the graph has validation errors, follow the existing Day 14 export-guard behavior.
+
+When export is blocked, the JSON dialog must show this exact message:
+
+**"This file has validation errors and cannot be re-imported until they are fixed."**
+
+The message must not imply that an invalid export is safe to re-import.
+
+If the existing guard allows the export to proceed, Copy and Download must use that same guarded export path. No alternative UI route may bypass the guard.
+
+The dialog's preview and summary must accurately represent what the user can export.
+
+---
+
+# PART 8 — ATOMIC STORE APPLICATION AND HISTORY
+
+## 19. Successful import must be atomic
+
+Use the existing Day 8 history-batching mechanism.
+
+A successful import must replace the graph through one coordinated graph-state update, or an equivalent safe transaction supported by the existing architecture.
+
+In that update:
+
+- Replace nodes and edges together.
+- Clear node and edge selection.
+- Clear stale transient state where necessary, including open menus, confirmations, Add Child choices, search results, and pasted-ring indicators.
+- Preserve the internal clipboard.
+- Preserve guidance and tour state.
+- Preserve unrelated settings.
+- Reseed the ID generator if required.
+- Do not include notification text or status messages in the graph-state update.
+
+If transient state is stored separately from graph state, coordinate its cleanup safely while ensuring the graph replacement remains atomic.
+
+Do not create multiple undo entries by updating nodes and edges independently.
+
+## 20. Failed import must change nothing
+
+For every failed import:
+
+- Current nodes remain unchanged.
+- Current edges remain unchanged.
+- Current node and edge references remain unchanged when the architecture allows this guarantee.
+- Undo history remains unchanged.
+- Redo history remains unchanged.
+- Current selection remains unchanged unless the user independently changes it.
+- Clipboard remains unchanged.
+- Current graph remains visible and usable.
+- No viewport reset occurs.
+- No import-success notification appears.
+- No checkpoint is created.
+
+Test reference equality for nodes and edges and confirm the history's past and future states remain unchanged.
+
+## 21. Post-import actions
+
+After a successful import:
+
+1. Apply the graph atomically.
+2. Trigger fresh validation using the Day 14 validation freshness-token mechanism.
+3. Fit the viewport to the imported graph without creating a history entry.
+4. Display an accurate success notification, such as `Imported 24 nodes and 23 edges`.
+5. Include the number of warnings when applicable.
+6. Use the existing Day 14 notification Undo mechanism with the correct `historyRevision` or equivalent stale-action protection.
+7. If the existing checkpoint feature is implemented, create an automatic checkpoint named `Before import`.
+
+Do not introduce an entirely new checkpoint system just for this task.
+
+A stale notification Undo action must never undo a newer unrelated change.
+
+Do not claim the import succeeded until the graph update actually succeeds.
+
+---
+
+# PART 9 — REPLACEMENT CONFIRMATION
+
+## 22. Confirm replacing a non-empty graph
+
+When the current graph is non-empty, require confirmation before replacing it with an imported graph.
+
+Show actual node counts. Example:
+
+`Replace your current graph (12 nodes) with the imported one (24 nodes)? You can undo this`
+
+Use the real counts and preserve the required meaning.
+
+Requirements:
+
+- Confirm applies the import only after successful validation.
+- Cancel leaves the current graph, selection, clipboard, history, viewport, and checkpoint state unchanged.
+- Do not mutate the graph while the confirmation dialog is open.
+- Revalidate the import or use a safe, verified check result if the source text has not changed.
+- If the source text changes after Check, invalidate the check.
+- Escape should cancel a pending replacement confirmation before closing the outer dialog.
+
+An empty current graph does not require unnecessary replacement confirmation.
+
+---
+
+# PART 10 — PROFESSIONAL JSON DIALOG
+
+## 23. Reuse the existing JSON modal
+
+Create or update the existing JSON dialog instead of adding redundant dialogs.
+
+Provide two tabs:
+
+- Export
+- Import
+
+Follow the project's existing visual design and component conventions.
+
+## 24. Export tab
+
+Display:
+
+- Read-only, formatted JSON preview.
+- One-line document summary containing counts and version.
+- Copy button.
+- Download button.
+- Appropriate validation/error note.
+- Informational note when exporting an empty graph is allowed.
+- Clear error feedback if export or clipboard access fails.
+
+The preview must display plain text, not HTML.
+
+Copy and Download must use the same normalized document and export guard.
+
+### Copy behavior
+
+- Use `navigator.clipboard` where available.
+- Provide a hidden-textarea fallback when appropriate.
+- Report success only when the copy operation succeeds.
+- If both methods fail, display an honest, actionable failure message.
+- Do not mark the Day 14 "exported" milestone as completed merely because the dialog opened or the preview was generated.
+
+### Download behavior
+
+- Generate a `.json` Blob.
+- Use the deterministic filename helper.
+- Create a temporary object URL.
+- Trigger the download.
+- Revoke the object URL when appropriate.
+- Report success only after the download operation is successfully initiated.
+- Handle errors without crashing the editor.
+
+The Day 14 "exported" milestone may be marked complete only after a successful Copy or Download operation.
+
+## 25. Import tab
+
+Include:
+
+- A labelled textarea for pasted JSON.
+- A file chooser.
+- A drag-and-drop file zone located **only inside the JSON dialog**, never over the main canvas.
+- A `Check` button.
+- An `Import` button.
+- Readable error and warning summaries.
+- A dry-run summary of node count, edge count, counts by node type, Root label when available, and warnings.
+
+File handling requirements:
+
+- Use `File.text()` or the appropriate existing file-reading abstraction.
+- Be lenient about extension and MIME metadata; do not rely on MIME type alone for correctness.
+- Validate the actual contents.
+- Reset the file input after processing so the same file can be selected again.
+- Enforce input limits.
+- Handle file-reading errors without crashing.
+
+### Check behavior
+
+`Check` must run the import pipeline without modifying the store, history, viewport, or clipboard.
+
+A successful check must display the graph summary and warnings.
+
+An unsuccessful check must display actionable errors.
+
+`Import` must remain disabled until the current text has passed Check.
+
+Any text edit, new file selection, or content replacement must invalidate the previous check. Never import text that differs from the text that was successfully checked.
+
+Parse once per explicit Check operation and reuse the verified result for Import only while the source text remains unchanged. Do not repeatedly parse identical content unnecessarily.
+
+If live checking is added, debounce it by approximately 300 ms using an injectable timer or existing test utility. Cancel stale pending work when the text changes or the dialog closes. Live checking must remain non-mutating.
+
+Do not let stale asynchronous results overwrite a newer check result.
+
+## 26. Example insertion menu
+
+Provide an `Insert example` menu with:
+
+- `Valid example`
+- `Broken example`
+
+The valid example must be built from existing sample-tree fixtures wherever possible and clearly labelled as mock sample data.
+
+The broken example must be a deliberate fixture that demonstrates understandable import errors.
+
+Requirements:
+
+- Keep fixtures pure and reusable by automated tests.
+- Do not create separate inconsistent copies of the same example.
+- Inserting an example populates the import editor; it must not replace the live graph.
+- Inserting a new example invalidates the previous check.
+- Do not present sample compliance content as official, legally approved, or production-authoritative.
+
+Existing sample identifiers such as `FINRA-2210`, `SEC-17a-4`, and `DISC-09` must remain explicitly labelled as mock data in the sample template where applicable.
+
+---
+
+# PART 11 — ACCESSIBILITY AND RESPONSIVE UX
+
+## 27. Accessibility requirements
+
+The JSON dialog must support:
+
+- `role="dialog"` and an accessible name.
+- Properly labelled tabs and textarea.
+- Keyboard navigation.
+- Visible keyboard focus.
+- Focus trapping while the dialog is open.
+- Focus restoration when the dialog closes.
+- Escape behavior that respects pending replacement confirmation.
+- A single appropriate polite live region for status announcements.
+- Keyboard-accessible error summaries and controls.
+- Understandable error titles, explanations, and fixes.
+
+Avoid excessive or duplicate live-region announcements.
+
+Use existing accessibility utilities if the project already has them. Do not add dependencies unnecessarily.
+
+## 28. Responsive behavior
+
+Inspect the dialog at widths of:
+
+- 1280 px
+- 1024 px
+- A narrow mobile-like viewport
+
+The dialog must not cause horizontal page overflow.
+
+Long JSON lines and error paths must wrap or scroll inside their intended preview or error container rather than expanding the entire page.
+
+Buttons and form controls must remain usable at narrow widths.
+
+Preserve the existing canvas and palette interactions. The import file drop zone must not intercept drag events outside the dialog.
+
+---
+
+# PART 12 — TESTS
+
+## 29. Pure logic tests
+
+Use the existing test framework and avoid DOM dependencies for pure JSON logic.
+
+Cover at least the following cases.
+
+### Export and deterministic serialization
+
+1. Valid graph export.
+2. Stable, deterministic output.
+3. Fixed object-key order.
+4. Node order preserved.
+5. Edge order preserved.
+6. Two-space indentation.
+7. Trailing newline.
+8. Runtime/UI fields excluded.
+9. Empty graph export behavior.
+10. Injected filename date produces the expected filename.
+11. Export does not mutate the graph.
+12. Valid graph export → import → export produces identical JSON.
+
+### Schema and parsing
+
+13. Malformed JSON.
+14. Empty input.
+15. Whitespace-only input.
+16. Leading BOM.
+17. Missing required fields.
+18. Wrong field types.
+19. Missing version.
+20. Version supplied as `"1"` rather than integer `1`.
+21. Unsupported future version, including version 2.
+22. Invalid node type.
+23. Unknown key rejected with the key identified.
+24. Malformed nested metadata.
+25. Invalid numeric positions or other required numeric fields.
+26. Duplicate node IDs.
+27. Invalid edge references.
+28. Invalid edge structure.
+29. Unsafe `__proto__`, `constructor`, and `prototype` keys.
+30. Oversized input by encoded byte count.
+31. Excessive node count.
+32. Top-level primitive or array instead of a document object.
+
+### Relationship and structural validation
+
+33. Invalid node-type relationship.
+34. Duplicate edge.
+35. Self-connection.
+36. Cycle.
+37. Second Root.
+38. Root with a parent.
+39. Non-root node with multiple parents.
+40. Warning-only structural issues are accepted and reported.
+41. Error-severity issues block import.
+42. Critical-severity issues block import.
+43. Empty-graph import behavior matches the actual validator policy.
+44. Collapsed descendants remain valid graph members and are not falsely reported as orphaned.
+
+### Normalization and migration
+
+45. Runtime fields are stripped with a non-blocking note.
+46. Normalization is idempotent.
+47. Imported IDs are preserved exactly.
+48. Migration registry dispatches correctly.
+49. Version 1 identity migration works.
+50. Unsupported versions are rejected.
+51. Every error code has a complete user-facing catalogue entry.
+52. Zod paths map to readable field paths.
+53. Error display is capped at 20 entries with a remaining-count message.
+54. Parser location information is shown only when it can be derived.
+
+### Store, history, and recovery
+
+55. Successful import replaces nodes and edges together.
+56. Successful import creates exactly one undo entry.
+57. Import → Undo → Redo works.
+58. Failed import preserves node and edge references.
+59. Failed import preserves past and future history.
+60. Cancelled replacement confirmation changes nothing.
+61. Selection is cleared after successful import.
+62. Internal clipboard survives successful import.
+63. Transient menus and stale UI state are cleared.
+64. Viewport fitting adds no history entry.
+65. Fresh validation is triggered after import.
+66. A stale validation result cannot overwrite a newer graph's validation.
+67. A stale notification Undo cannot undo an unrelated newer change.
+68. ID generation remains collision-free after importing IDs such as `node-7` and `node-100`.
+69. Import followed by Add Child produces unique IDs.
+70. Import followed by node creation and paste produces no duplicate IDs.
+71. Two consecutive successful imports work correctly.
+72. Failed import causes no success notification or checkpoint.
+
+### Dialog behavior
+
+73. Editing the textarea invalidates a previously successful Check.
+74. Import is disabled when the check result is stale.
+75. Checking does not mutate the graph or history.
+76. File chooser can select the same file again after resetting.
+77. File-reading failures are handled safely.
+78. Copy success is reported only after successful copying.
+79. Copy failure produces honest feedback.
+80. Download uses the expected filename and JSON content.
+81. The export guard cannot be bypassed through Copy or Download.
+82. The Day 14 exported milestone changes only after successful Copy or Download.
+83. Example insertion does not modify the live graph.
+84. Broken example produces readable errors.
+
+Adapt these tests to actual component boundaries. Do not add artificial tests that merely restate implementation details without testing behavior.
+
+## 30. Property-style and scale tests
+
+Use the existing Day 12 seeded graph generator or `buildLargeTree` fixture if available.
+
+- Generate at least 50 valid graphs using deterministic seeds.
+- For each graph, verify `exportGraph → importGraph → exportGraph` produces identical serialized text.
+- Verify normalization idempotence.
+- Verify exported JSON contains no runtime/UI fields.
+- Verify a 500-node valid graph round-trips correctly.
+- Verify generated fixtures obey the agreed relationship rules.
+
+Do not introduce a new property-testing dependency unless one already exists or is explicitly approved.
+
+Tests must be deterministic. Do not rely on real network requests, random unseeded data, or unnecessary timing delays.
+
+## 31. History batching verification
+
+Use the existing Day 8 batching mechanism and test the actual store integration.
+
+A successful import must produce exactly one history entry even though nodes, edges, ID counters, and transient UI state may need coordinated updates.
+
+If the history architecture cannot guarantee the required behavior, explain the actual limitation and implement the safest architecture-compatible solution without corrupting history.
+
+Do not claim atomicity merely because the UI appears to update simultaneously.
+
+---
+
+# PART 13 — DOCUMENTATION
+
+## 32. Update ARCHITECTURE.md
+
+Document:
+
+- The JSON document schema.
+- The versioning strategy.
+- The migration registry.
+- The exact import pipeline and its stage order.
+- The error codes associated with each stage.
+- Byte-size and node-count guards.
+- Normalization and runtime-field stripping.
+- Prototype-pollution protections.
+- Relationship and structural validation.
+- Warning versus blocking-error policy.
+- Store application and history batching.
+- ID-generator reseeding.
+- Validation freshness and viewport fitting.
+- Export guard integration.
+- Deterministic serialization.
+- Check, Import, Undo, and failure behavior.
+
+Documentation must reflect the actual implementation.
+
+## 33. Update REQUIREMENTS.md
+
+Mark the versioned JSON import/export requirements according to their real implementation status.
+
+Distinguish between:
+
+- Implemented and tested.
+- Implemented but manually verified.
+- Partially implemented.
+- Not implemented.
+- Blocked by a pre-existing issue.
+
+Do not mark a requirement complete simply because code was written.
+
+---
+
+# PART 14 — MANUAL VERIFICATION
+
+## 34. Run a focused manual verification sequence
+
+If DOM testing infrastructure is not already present, do not install a new library just for this task. Keep pure logic automated and report the following as manual checks.
+
+Verify:
+
+1. Open a valid existing graph.
+2. Export JSON and inspect the preview.
+3. Copy and download the JSON.
+4. Manually break the JSON syntax and Check it.
+5. Confirm readable errors appear without changing the graph.
+6. Restore valid JSON.
+7. Check it and review the summary and warnings.
+8. Import it.
+9. Confirm node and edge counts.
+10. Undo the import.
+11. Redo the import.
+12. Import a different graph after confirming replacement.
+13. Cancel a replacement confirmation and confirm nothing changes.
+14. Test the broken example.
+15. Test file selection and selecting the same file again.
+16. Test the export guard on a graph with validation errors.
+17. Verify Drag → Connect → Edit → Undo → Export JSON still works.
+18. Verify Help, Tour, Onboarding, validation panel, issue navigation, and existing notification Undo behavior according to the actual agreed requirements.
+19. Inspect responsive behavior and keyboard accessibility.
+
+Do not report a manual check as passed unless it was actually performed.
+
+---
+
+# PART 15 — FINAL QUALITY GATE
+
+## 35. Non-negotiable reliability requirements
+
+Before declaring Day 15 complete:
+
+- Inspect the actual repository and preserve all verified prior functionality.
+- Keep graph relationship decisions centralized.
+- Keep incomplete editing graphs distinct from valid completed trees.
+- Never mutate the graph before the import pipeline succeeds.
+- Ensure failed imports preserve graph and history.
+- Ensure successful imports create exactly one undoable graph change.
+- Verify IDs remain unique after import and subsequent graph operations.
+- Ensure collapsed descendants remain in the graph.
+- Exclude runtime/UI fields from exported JSON.
+- Safely remove supported runtime fields from imported JSON.
+- Treat imported content as untrusted.
+- Verify size limits and structural checks.
+- Verify deterministic serialization.
+- Ensure normalization is idempotent.
+- Respect the real validator's warning, error, and critical severities.
+- Ensure the JSON dialog cannot bypass the existing export guard.
+- Prevent stale checks, stale validation results, and stale Undo actions from affecting newer graph state.
+- Ensure cleanup of timers, listeners, and temporary download resources where applicable.
+- Avoid duplicate validation logic, unnecessary dependencies, dead code, and unrelated redesign.
+
+## 36. Final automated verification
+
+After the final code change, run:
+
+1. The complete relevant automated test suite.
+2. Lint.
+3. The production build.
+
+Use the actual scripts and commands defined in the repository.
+
+If a command fails:
+
+- Investigate the failure.
+- Fix regressions introduced by Day 15 where safe.
+- Rerun the relevant checks after the final changes.
+- Distinguish pre-existing failures from new failures.
+- Clearly report any unresolved failure.
+
+Never reuse an earlier successful test result as proof that the final code passed.
+
+Do not claim the application is production-ready solely because tests, lint, and build pass.
+
+## 37. Final report required
+
+When implementation and verification are complete, report:
+
+1. Summary of what was actually implemented.
+2. Every changed or created file and its purpose.
+3. Installed Zod version.
+4. Actual validator severity model.
+5. Import pipeline and migration behavior.
+6. Security protections implemented.
+7. Atomic store update and history behavior.
+8. ID reseeding behavior and collision tests.
+9. Tests added and exact test results.
+10. Exact commands and outcomes for tests, lint, and production build.
+11. Any manual checks actually completed.
+12. Any remaining failures, limitations, or risks.
+13. Confirmation of whether the existing Day 1–14 regression path was verified.
+14. Updated documentation.
+15. A concise 90-second demo script.
+
+The 90-second demo should demonstrate:
+
+- Exporting JSON.
+- Manually breaking the file.
+- Displaying readable errors.
+- Fixing the file.
+- Checking the valid document.
+- Importing it.
+- Undoing the import.
+
+Do not fabricate successful outputs, test counts, build results, or verification claims. If something cannot be verified, state that clearly.
+
+---
+
+# EXPLICITLY OUT OF SCOPE
+
+Do not implement:
+
+- Draft or partial import.
+- Merge import.
+- YAML or CSV import/export.
+- Import from URLs or cloud storage.
+- File signing or hashing.
+- Canvas-level drag-and-drop file import.
+- Server autosave or a remote database.
+- A workflow execution engine.
+- Unrelated schema changes.
+- Unrelated UI redesign.
+- New dependencies other than Zod if it is missing.
+
+---
+
+# FINAL DEFINITION OF DONE
+
+Day 15 is complete only when the agreed JSON functionality is implemented in the existing application, the import pipeline is safe, validation and warnings follow the specified policy, failed imports preserve the current state, successful imports are undoable in one history step, IDs remain collision-free, deterministic serialization is tested, existing functionality is preserved, documentation matches the implementation, and final verification results are genuine.
+
+If a requirement cannot be completed safely within this task, explain the limitation rather than silently omitting it or pretending it is complete.
+
+**Start by inspecting the repository. Then implement Day 15 in the smallest safe steps, run the required verification after the final code change, update the documentation, and provide the factual final report. Stop after Day 15.**

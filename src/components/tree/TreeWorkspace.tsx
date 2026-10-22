@@ -7,11 +7,15 @@ import { TreeCanvasArea } from './TreeCanvasArea';
 import { PropertiesInspectorSidebar } from './PropertiesInspectorSidebar';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
+import { JsonImportExportModal } from './JsonImportExportModal';
 
 export const TreeWorkspace: React.FC = () => {
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const selectedNodeId = useTreeStore((state) => state.selectedNodeId);
+
+  const [jsonModalOpen, setJsonModalOpen] = useState(false);
+  const [jsonModalTab, setJsonModalTab] = useState<'export' | 'import'>('export');
 
   // Automatically open mobile inspector when a node is selected (e.g. from search)
   useEffect(() => {
@@ -22,6 +26,24 @@ export const TreeWorkspace: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [selectedNodeId]);
+
+  useEffect(() => {
+    const handleExportEvent = () => {
+      setJsonModalTab('export');
+      setJsonModalOpen(true);
+    };
+    const handleImportEvent = () => {
+      setJsonModalTab('import');
+      setJsonModalOpen(true);
+    };
+
+    window.addEventListener('tree:trigger-export-modal', handleExportEvent);
+    window.addEventListener('tree:trigger-import-modal', handleImportEvent);
+    return () => {
+      window.removeEventListener('tree:trigger-export-modal', handleExportEvent);
+      window.removeEventListener('tree:trigger-import-modal', handleImportEvent);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-white text-slate-900 font-sans">
@@ -80,6 +102,12 @@ export const TreeWorkspace: React.FC = () => {
           </div>
         )}
       </div>
+
+      <JsonImportExportModal
+        isOpen={jsonModalOpen}
+        onClose={() => setJsonModalOpen(false)}
+        defaultTab={jsonModalTab}
+      />
     </div>
   );
 };

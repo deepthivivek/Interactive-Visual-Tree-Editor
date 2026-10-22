@@ -464,19 +464,20 @@ const TreeCanvasInner: React.FC = () => {
         return;
       }
 
-      // Extract comprehensive selection list (combines selectedNodeId, selectedNodeIds, and flow node.selected)
+      // Extract comprehensive selection list (prioritizing explicit selectedNodeIds array)
       const rawIds = state.selectedNodeIds as unknown;
       const selectedIdList: string[] = Array.isArray(rawIds)
         ? [...(rawIds as string[])]
         : rawIds instanceof Set
         ? Array.from(rawIds as Set<string>)
         : [];
-      if (state.selectedNodeId && !selectedIdList.includes(state.selectedNodeId)) {
+      if (selectedIdList.length === 0 && state.selectedNodeId) {
         selectedIdList.push(state.selectedNodeId);
-      }
-      for (const n of state.nodes) {
-        if (n.selected && !selectedIdList.includes(n.id)) {
-          selectedIdList.push(n.id);
+      } else if (selectedIdList.length === 0) {
+        for (const n of state.nodes) {
+          if (n.selected && !selectedIdList.includes(n.id)) {
+            selectedIdList.push(n.id);
+          }
         }
       }
       const hasAnySelected = selectedIdList.length > 0;
@@ -1038,8 +1039,19 @@ const TreeCanvasInner: React.FC = () => {
         onNodeContextMenu={(event, node) => {
           event.preventDefault();
           event.stopPropagation();
-          setSelectedNodeId(node.id);
-          setSelectedEdgeId(null);
+          const state = useTreeStore.getState();
+          const rawIds = state.selectedNodeIds as unknown;
+          const currentMulti: string[] = Array.isArray(rawIds)
+            ? (rawIds as string[])
+            : rawIds instanceof Set
+            ? Array.from(rawIds as Set<string>)
+            : [];
+          const isNodeInMultiSelection = currentMulti.includes(node.id);
+
+          if (!isNodeInMultiSelection) {
+            setSelectedNodeId(node.id);
+            setSelectedEdgeId(null);
+          }
           setNodeContextMenu({
             isOpen: true,
             x: event.clientX,
@@ -1322,6 +1334,8 @@ const TreeCanvasInner: React.FC = () => {
           }
         }}
       />
+
+
 
       {/* Mock Compliance Disclaimer (Persistent Subtle Note) */}
       <div className="absolute top-2.5 right-4 z-10 hidden sm:block pointer-events-none">

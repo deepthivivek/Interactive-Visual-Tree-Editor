@@ -129,7 +129,7 @@ export function resolveNodeContextMenuItems(
   items.push({
     id: 'copy-subtree',
     label: options.descendantCount > 0 ? 'Copy Subtree' : 'Copy Node',
-    shortcut: 'Ctrl+C',
+    shortcut: options.multiSelectedCount && options.multiSelectedCount >= 2 ? undefined : 'Ctrl+C',
   });
 
   items.push({
@@ -160,7 +160,7 @@ export function resolveNodeContextMenuItems(
   items.push({
     id: 'delete-single',
     label: 'Delete Node Only',
-    shortcut: 'Del',
+    shortcut: options.multiSelectedCount && options.multiSelectedCount >= 2 ? undefined : 'Del',
     danger: true,
   });
 

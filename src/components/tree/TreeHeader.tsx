@@ -15,6 +15,8 @@ import {
   Redo2,
   Workflow,
   Keyboard,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/treeStore';
 import { SearchBox } from './SearchBox';
@@ -191,6 +193,7 @@ export const TreeHeader: React.FC = () => {
           <span className="hidden xl:inline">Shortcuts</span>
         </button>
 
+
         {/* Graph Validation & Quality Trigger (Day 14) */}
         <button
           type="button"
@@ -205,15 +208,27 @@ export const TreeHeader: React.FC = () => {
           <span className="hidden xl:inline">Validation</span>
         </button>
 
-        {/* JSON / Export Action */}
+        {/* Import JSON Modal Trigger */}
         <button
           type="button"
-          onClick={handleExportJson}
+          onClick={() => window.dispatchEvent(new CustomEvent('tree:trigger-import-modal'))}
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 transition shadow-2xs cursor-pointer"
+          title="Import compliance tree JSON document with validation and rollback"
+          aria-label="Import JSON"
+        >
+          <Upload className="w-3.5 h-3.5 text-blue-500" />
+          <span className="hidden xl:inline">Import JSON</span>
+        </button>
+
+        {/* Export JSON Modal Trigger */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('tree:trigger-export-modal'))}
           className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 transition shadow-2xs cursor-pointer"
           title="Export compliance tree JSON document (version 1 schema)"
-          aria-label="Export compliance tree as JSON"
+          aria-label="Export JSON"
         >
-          <FileCode className="w-3.5 h-3.5 text-slate-500" />
+          <Download className="w-3.5 h-3.5 text-slate-500" />
           <span className="hidden xl:inline">Export JSON</span>
         </button>
 
