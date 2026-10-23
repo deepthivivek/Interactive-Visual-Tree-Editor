@@ -1092,3 +1092,70 @@ export function getBrokenExampleDocument(): string {
 
   return JSON.stringify(brokenDoc, null, 2) + '\n';
 }
+
+/**
+ * Merges an imported graph into an existing graph, remapping node IDs and
+ * shifting positions horizontally to avoid collisions and keep existing tree intact.
+ */
+export function mergeGraph(
+  currentNodes: readonly TreeNode[],
+  currentEdges: readonly TreeEdge[],
+  importedNodes: readonly TreeNode[],
+  importedEdges: readonly TreeEdge[]
+): { nodes: TreeNode[]; edges: TreeEdge[] } {
+  const existingNodeIds = new Set(currentNodes.map((n) => n.id));
+  const idMap = new Map<string, string>();
+
+  let maxX = 0;
+  for (const n of currentNodes) {
+    if (n.position.x > maxX) {
+      maxX = n.position.x;
+    }
+  }
+  const xOffset = maxX > 0 ? maxX + 600 : 800;
+
+  const remappedNodes: TreeNode[] = importedNodes.map((node) => {
+    let newId = node.id;
+    if (existingNodeIds.has(newId)) {
+      const suffix = Math.random().toString(36).substring(2, 8);
+      newId = `${node.id}-${suffix}`;
+    }
+    idMap.set(node.id, newId);
+
+    return {
+      ...node,
+      id: newId,
+      position: {
+        x: node.position.x + xOffset,
+        y: node.position.y,
+      },
+      data: {
+        ...node.data,
+        parameters: node.data.parameters ? { ...node.data.parameters } : undefined,
+        metadata: node.data.metadata ? { ...node.data.metadata } : undefined,
+        tags: node.data.tags ? [...node.data.tags] : undefined,
+      },
+    };
+  });
+
+  const remappedEdges: TreeEdge[] = importedEdges.map((edge) => {
+    const newSource = idMap.get(edge.source) ?? edge.source;
+    const newTarget = idMap.get(edge.target) ?? edge.target;
+    const uniqueSuffix = Math.random().toString(36).substring(2, 8);
+    const newEdgeId = `e-${newSource}-${newTarget}-${uniqueSuffix}`;
+
+    return {
+      ...edge,
+      id: newEdgeId,
+      source: newSource,
+      target: newTarget,
+      data: edge.data ? { ...edge.data } : undefined,
+    };
+  });
+
+  return {
+    nodes: [...currentNodes, ...remappedNodes],
+    edges: [...currentEdges, ...remappedEdges],
+  };
+}
+

@@ -1,0 +1,581 @@
+# DAY 16 — RELIABLE LOCAL PERSISTENCE, RESTORE, RECOVERY & FINAL QUALITY AUDIT
+
+You are working on my existing **Interactive Visual Tree Editor** project. Implement Day 16 completely, with a strong focus on correctness, maintainability, reliability, accessibility, and preserving all functionality completed in Days 1–15.
+
+Treat this as an engineering task, not just a UI task. Inspect the existing repository, understand its architecture, implement the required changes, test them, and provide an honest final report.
+
+**Primary objective:** When a user edits a workflow, their graph and supported settings should persist across page refreshes. The application must restore saved data safely, recover gracefully from corrupted or incompatible data, maintain correct undo/redo behavior, and never falsely claim that unsaved changes have been saved.
+
+Do not guarantee a score of 100/100. Instead, meet every applicable acceptance criterion and provide evidence for the result.
+
+---
+
+## 1. Inspect the existing project before making changes
+
+Before writing code, inspect the actual repository, including:
+
+- `package.json` and available scripts.
+- Next.js version and App Router structure.
+- TypeScript configuration and strictness.
+- Tailwind CSS, ESLint, and existing coding conventions.
+- Existing Zustand store and Zundo undo/redo implementation.
+- React Flow / `@xyflow/react` integration.
+- Current graph node and edge types.
+- Sample-tree creation and initialization.
+- Day 15 JSON import/export implementation and schemas.
+- Existing validation and relationship rules.
+- Settings, toolbar, modals, notifications, and save-status UI.
+- Existing tests, test utilities, and `ARCHITECTURE.md`.
+
+Identify the authoritative source of graph state and the safest place to integrate persistence.
+
+Do not assume filenames, store APIs, schema shapes, or commands without checking the repository. Reuse existing implementations where appropriate instead of creating duplicate systems.
+
+After inspection, implement Day 16 directly in the existing architecture.
+
+## 2. Non-negotiable preservation rules
+
+- Preserve every working feature from Days 1–15.
+- Do not rewrite the entire application just to add persistence.
+- Do not remove, replace, or weaken existing validation, import/export, graph editing, history, or accessibility behavior.
+- Do not introduce unnecessary dependencies or a second state-management system.
+- Do not introduce `any` or unsafe type assertions to bypass TypeScript errors.
+- Keep TypeScript strict and follow existing project conventions.
+- Do not add a backend, remote database, cloud synchronization, authentication, or workflow execution engine.
+- Do not add cross-tab synchronization or a complicated recovery framework.
+- Do not commit changes.
+- Do not run destructive Git commands or discard existing user changes.
+- Do not modify unrelated files.
+- Do not implement future-day features.
+- Stop when Day 16 is complete.
+
+If an existing requirement conflicts with the repository's actual implementation, inspect the code, preserve established functionality, and explain the conflict rather than silently breaking behavior.
+
+## 3. Preserve the existing graph model and relationship rules
+
+The application is a general-purpose business-rules and decision-workflow editor. It is not limited to expense approvals, employee approvals, or any single business process.
+
+The graph uses these node types:
+
+- `Root`
+- `Rule`
+- `Condition`
+- `Action`
+
+The permitted relationships are:
+
+- Root → Rule
+- Rule → Condition
+- Rule → Action
+- Condition → Action
+- Action → no children
+
+A valid completed tree must have exactly one Root, the Root must have no parent, and every non-root node must have exactly one valid parent.
+
+The editor may temporarily contain incomplete or structurally invalid graphs while the user is editing. Do not block ordinary node creation merely because the graph is temporarily incomplete.
+
+Preserve the existing centralized relationship rules in `src/lib/relationshipRules.ts`, if that is the repository's current implementation. Reuse the same rules across connections, editing operations, validation, import, paste, and other graph mutations.
+
+Continue rejecting invalid relationships, including:
+
+- Self-connections.
+- Cycles.
+- Duplicate edges.
+- Invalid node-type combinations.
+- Multiple parents where only one parent is permitted.
+- Connections to missing nodes.
+
+Ensure node IDs remain unique after graph-creating operations, including imports, duplication, and subtree paste.
+
+Collapsed descendants must remain part of the underlying graph. A collapsed subtree must not be incorrectly treated as deleted nodes or false-positive orphans.
+
+Preserve existing behavior for sample data such as FINRA-2210, SEC-17a-4, and DISC-09. These are illustrative mock compliance examples and must not be presented as official regulatory templates or verified legal guidance.
+
+Persistence must not weaken or bypass any of these rules.
+
+## 4. Implement the persistence module
+
+Create `src/lib/persistence.ts`, or use the appropriate existing equivalent if the repository already has a persistence module.
+
+The module should provide small, typed, testable functions for the operations actually needed, such as:
+
+- Serializing the persistable application document.
+- Reading and parsing the saved payload.
+- Validating its version and structure.
+- Normalizing data where necessary.
+- Safely handling storage errors.
+- Writing valid serialized data.
+- Resetting persisted data when explicitly requested.
+
+Choose clear function names that fit the existing codebase.
+
+Keep persistence logic separate from UI components. Avoid giant components, duplicated parsing logic, unnecessary abstractions, and circular imports.
+
+Do not duplicate the Day 15 JSON import/export implementation. Reuse its existing schemas, validation, and normalization utilities where appropriate, while keeping local persistence and JSON interchange as distinct formats.
+
+## 5. Persist only the correct information
+
+Persist only:
+
+1. The current graph nodes.
+2. The current graph edges.
+3. Supported persistent settings that already exist, such as grid visibility or theme, if those settings are part of the current application.
+
+Do not invent new settings solely for persistence.
+
+Use a namespaced, versioned local persistence format. Include a persistence version so future versions can detect incompatible stored data.
+
+Keep the local persistence format distinct from the existing Day 15 JSON interchange format. Do not silently change the public JSON import/export format merely to support autosave.
+
+Never persist:
+
+- Undo history.
+- Redo history.
+- Current selection.
+- Search input or search results.
+- Inspector or context-menu state.
+- Open-modal state.
+- Temporary validation display state.
+- Drag-in-progress state.
+- Clipboard contents.
+- Temporary notifications.
+- Other transient UI state.
+
+Do not store the complete Zustand or Zundo state if it includes transient state or history. Explicitly construct a minimal persistence document from the authoritative graph state and supported settings.
+
+Preserve node data needed by the editor, including each node's collapsed state and supported custom properties.
+
+## 6. Validate restored data safely
+
+Never trust localStorage data simply because it was written by this application previously.
+
+On restoration:
+
+- Parse the saved payload safely.
+- Verify that the payload has the expected format and supported version.
+- Validate node and edge structures.
+- Validate required fields and references.
+- Reject malformed objects and edges that reference nonexistent nodes.
+- Detect duplicate IDs and invalid graph structures.
+- Reuse Day 15 schemas, normalization, and relationship rules where appropriate.
+- Avoid `eval`, executable imports, or unsafe HTML rendering.
+- Preserve legitimate incomplete editing states where the existing model permits them.
+
+Distinguish between blocking data corruption and ordinary graph incompleteness.
+
+A structurally incomplete graph should not automatically be discarded if it remains a legitimate editable document. Existing validation warnings can explain its state.
+
+However, malformed, incompatible, or unsafe data must not be restored blindly.
+
+If validation fails, do not partially apply the invalid graph. Restore should be atomic: either apply the complete validated document or leave the current graph unchanged.
+
+Do not silently convert corrupted data into an apparently valid graph by dropping arbitrary nodes or edges.
+
+## 7. Integrate safely with Next.js client-side initialization
+
+Prevent server-side rendering and hydration problems.
+
+- Never read or write `localStorage` during server rendering.
+- Perform browser storage operations only on the client.
+- Use the existing application initialization pattern where possible.
+- Avoid hydration mismatches caused by loading a saved graph too early or rendering different initial structures on the server and client.
+- Avoid rendering the sample tree as a final result before a valid saved graph has had a chance to restore.
+- Prevent autosave from writing the default sample tree over existing saved data before restoration finishes.
+- Ensure startup initialization is idempotent, including under React Strict Mode.
+- Prevent duplicate initialization and competing restore operations.
+- Clean up subscriptions and listeners correctly.
+
+Use a clear initialization state, such as `loading`, `ready`, or an equivalent appropriate to the existing architecture.
+
+**Autosave must not run until initialization has reached a definite state.**
+
+Handle the following startup scenarios:
+
+1. No saved payload exists.
+2. A valid saved payload exists.
+3. A corrupted payload exists.
+4. An incompatible persistence version exists.
+5. Reading storage throws an error.
+6. Storage is unavailable.
+
+If there is no saved payload, initialize the existing sample tree normally.
+
+If valid data exists, restore it before autosave becomes active.
+
+If reading or validating saved data fails, do not mistake that failure for an empty storage location. Do not automatically overwrite the original stored value with the sample tree.
+
+Show an appropriate recovery message and let the user choose an explicit recovery action.
+
+Do not create automatic retries that repeatedly overwrite or replace saved data.
+
+## 8. Autosave behavior
+
+Implement reliable autosave using the existing state architecture.
+
+Autosave should reflect meaningful changes to the authoritative graph document, including:
+
+- Node creation and deletion.
+- Node edits.
+- Valid edge creation and deletion.
+- Supported node-data changes.
+- Collapse and expand.
+- Auto Layout.
+- Successful import.
+- Undo and redo.
+- Confirmed Reset Sample Tree operations.
+
+Use the actual store's state and existing mutation mechanisms. Do not add a second competing source of truth.
+
+Avoid:
+
+- Saving on every render.
+- Infinite subscription loops.
+- Repeated writes when the persisted document has not changed.
+- Stale closures or stale graph snapshots.
+- Autosave during startup restoration.
+- Saving undo/redo history.
+- Duplicate store subscriptions.
+- Unnecessary full-document writes triggered by selection-only changes.
+
+Use a small debounce if appropriate, provided that the latest changes are reliably saved and the UI accurately reports pending changes.
+
+If the page is refreshed while a debounced write is pending, handle the save lifecycle carefully. Do not claim that a change is saved until the write actually succeeds.
+
+If a user action explicitly requires immediate persistence, follow the existing architecture's safest approach rather than relying on a pending debounce.
+
+## 9. Accurate save-status UI
+
+Provide a clear and accessible save-status indicator consistent with the current UI design.
+
+Use appropriate states such as:
+
+- Loading saved document.
+- Unsaved changes.
+- Saving.
+- Saved just now.
+- Save failed.
+- Recovery required, if applicable.
+
+Do not show `Saved just now` before a successful write.
+
+Do not report that the current graph is saved when only an older graph snapshot has been written.
+
+If the graph changes after a save has been scheduled, an older scheduled save must not overwrite the newer graph.
+
+If the graph changes while a write is pending, the previous write must not be treated as confirmation that the latest graph is saved.
+
+Use the simplest correct mechanism compatible with the existing store, such as a document revision or comparison against the latest serialized snapshot. Do not introduce an unnecessary revision-management framework.
+
+When the storage write fails:
+
+- Keep the user's current graph in memory.
+- Clearly indicate that the latest changes were not saved.
+- Do not falsely display a success status.
+- Allow normal editing to continue where practical.
+- Avoid silently discarding edits.
+
+Handle serialization errors, quota errors, and storage access failures separately enough to provide useful feedback.
+
+Do not claim a successful write if the storage operation threw an exception.
+
+## 10. Protect the last valid saved document
+
+- Construct and serialize the complete new persistence payload before attempting to write it.
+- Never overwrite a known-good saved payload if serialization or validation of the new payload fails.
+- On write failure, preserve the current in-memory graph and report the unsaved state.
+- Do not automatically delete the previous saved payload to recover from a quota error.
+- Do not create multiple backup keys or a complicated backup framework unless the existing project genuinely requires one.
+- Do not claim that localStorage is a transactional database or guarantees permanent data retention.
+
+For read, parse, validation, or restoration failures, preserve the original stored payload until the user explicitly chooses a recovery or reset action.
+
+If storage is unavailable, the editor should explain that persistence is unavailable while preserving in-memory editing where possible.
+
+## 11. Reset Sample Tree
+
+Provide or preserve a clearly labelled `Reset Sample Tree` action.
+
+Requirements:
+
+- Ask for confirmation before replacing the current graph.
+- Clearly warn that the current graph will be replaced by the sample graph.
+- If the user cancels, make no graph or persistence changes.
+- If the user confirms, replace the graph with the existing sample tree atomically.
+- Use the existing sample-tree implementation instead of creating a duplicate sample graph.
+- Preserve the expected supported settings unless the established application behavior specifies otherwise.
+- Persist the reset result successfully when storage is available.
+- Do not include undo/redo history in persisted data.
+- Ensure the graph and save status reflect the result accurately.
+- If persistence fails, keep the sample graph in memory but report that it was not saved.
+
+Do not silently reset a corrupted or unreadable stored document on startup without giving the user a clear recovery choice.
+
+## 12. Undo/redo and persistence integration
+
+Undo and redo history must remain separate from the persisted graph document.
+
+After a page refresh and successful restoration:
+
+- The restored graph should be correct.
+- Previous-session undo history must not be restored.
+- Previous-session redo history must not be restored.
+- The history must start fresh, according to the existing Zundo architecture.
+
+Preserve the history conventions already established in the project:
+
+- One node drag should create one history entry.
+- One Auto Layout operation should create one history entry.
+- One subtree paste should create one history entry.
+- One collapse/expand operation should create one history entry.
+- One successful import should create one history entry.
+- Selection and copying alone should not create graph history.
+- Failed imports should not modify the graph or create a history entry.
+
+Do not implement a second undo/redo system.
+
+Verify the following scenario:
+
+1. Start with graph A.
+2. Import graph B successfully.
+3. Undo and confirm graph A is restored.
+4. Refresh the page.
+5. Confirm graph A is restored and history starts fresh.
+6. Redo graph B if redo is available before refreshing.
+7. Confirm graph B is saved and restored after another refresh.
+
+Ensure autosave reflects the current graph after undo and redo.
+
+## 13. Day 15 JSON import/export compatibility
+
+Preserve the existing Day 15 JSON interchange behavior.
+
+- Do not silently change its public format.
+- Do not include local persistence metadata in exported graph JSON unless the existing documented format explicitly requires it.
+- Do not export undo/redo history.
+- Reuse existing schemas and validation.
+- Ensure successful imports become eligible for autosave.
+- Ensure failed imports leave the existing graph unchanged.
+- Ensure undo and redo after import update the persisted graph correctly.
+- Preserve unique node IDs and valid references.
+- Keep local persistence versioning independent of the Day 15 JSON format version unless the existing architecture explicitly shares a schema.
+
+Verify import, export, validation, and persistence together.
+
+## 14. External storage changes and lifecycle cleanup
+
+Do not build cross-tab synchronization for Day 16.
+
+If the project already has a storage-event handler or other external synchronization mechanism, inspect it and ensure it cannot silently overwrite the active graph or its history.
+
+If an existing handler detects an external storage change, handle it safely according to the existing architecture. Otherwise, do not introduce a new cross-tab synchronization system.
+
+Ensure all subscriptions, event listeners, and initialization effects have appropriate cleanup.
+
+Do not add background polling or complex synchronization infrastructure.
+
+## 15. User experience and accessibility
+
+Integrate persistence into the existing visual design.
+
+- Use the current design system and existing components.
+- Keep save status easy to understand without dominating the interface.
+- Use clear messages for restoration, save failure, and recovery.
+- Ensure confirmation dialogs are accessible.
+- Ensure keyboard users can operate the reset and recovery actions.
+- Provide appropriate accessible labels for icon-only controls.
+- Do not rely only on color to communicate save status.
+- Avoid intrusive alerts for routine successful saves.
+- Do not show a success message for a failed operation.
+- Do not introduce a large settings screen or unnecessary UI.
+
+Keep components focused and reusable.
+
+If existing Help, Tour, Onboarding, or other interface elements are present, inspect their current intended state and preserve the applicable requirements. Do not reintroduce removed elements or remove existing features without evidence that the project specification requires it.
+
+## 16. Automated tests
+
+Add tests using the repository's existing test framework. Prefer deterministic unit and integration tests over unnecessary new dependencies.
+
+Cover the following areas.
+
+### A. Persistence format and serialization
+
+1. Serializes a valid graph.
+2. Deserializes a valid saved graph.
+3. Preserves node data and collapsed state.
+4. Preserves supported settings.
+5. Excludes undo/redo history.
+6. Excludes transient UI state.
+7. Detects malformed JSON.
+8. Detects unsupported persistence versions.
+9. Rejects malformed nodes.
+10. Rejects malformed edges.
+11. Detects missing node references.
+12. Detects duplicate node IDs.
+13. Does not silently discard arbitrary graph data during recovery.
+14. Distinguishes blocking corruption from legitimate incomplete editing states.
+
+### B. Initialization and restoration
+
+15. Initializes the sample tree when storage is empty.
+16. Restores a valid saved document.
+17. Does not overwrite valid saved data during initialization.
+18. Does not autosave before restoration completes.
+19. Handles corrupted storage without crashing.
+20. Handles incompatible stored versions safely.
+21. Handles storage read errors.
+22. Handles unavailable storage.
+23. Does not restore previous-session undo/redo history.
+24. Handles repeated initialization safely.
+
+### C. Autosave and save status
+
+25. Saves meaningful graph changes.
+26. Saves node edits.
+27. Saves supported collapse/expand changes.
+28. Saves successful imports.
+29. Saves undo and redo results.
+30. Avoids unnecessary writes for selection-only changes.
+31. Avoids repeated writes when the document has not changed.
+32. Handles serialization failure.
+33. Handles write failure and quota errors.
+34. Keeps the in-memory graph after write failure.
+35. Never reports a failed write as successful.
+36. Does not allow an older scheduled snapshot to overwrite a newer graph.
+37. Does not show the latest graph as saved when only an older revision was written.
+
+### D. Reset and recovery
+
+38. Cancelling reset changes nothing.
+39. Confirming reset restores the existing sample tree.
+40. Reset persists when storage is available.
+41. Reset reports unsaved status when persistence fails.
+42. Corrupted stored data is not silently overwritten before explicit recovery.
+43. Explicit recovery persists the chosen replacement when possible.
+
+### E. Integration and regression
+
+44. Import → undo → refresh restores the expected graph.
+45. Import → undo → redo → refresh restores the expected graph.
+46. Exported JSON remains compatible with Day 15.
+47. Failed import leaves the graph unchanged.
+48. Node IDs remain unique after graph-creating operations.
+49. Collapsed descendants remain in the underlying graph.
+50. The protected workflow still works: Drag → Connect → Edit → Export JSON → Validate.
+
+Adapt these tests to the existing codebase. Avoid brittle tests that assert implementation details instead of behavior. If an existing test already covers a requirement, do not create a duplicate test merely to increase the test count.
+
+Use deterministic test data and deterministic seeds for any randomized tests. Do not rely on flaky randomness, real network access, or actual browser storage where a controlled test environment is more appropriate.
+
+## 17. Browser-level smoke tests
+
+When browser access is available, manually verify the following in the running application:
+
+1. First launch with no saved data.
+2. Editing and saving a graph.
+3. Refreshing and restoring the edited graph.
+4. Confirming that undo history starts fresh after restoration.
+5. Importing graph B, undoing to graph A, and refreshing to confirm graph A.
+6. Redoing to graph B, refreshing, and confirming graph B.
+7. Corrupting the stored payload and confirming that the app does not crash or silently overwrite it.
+8. Explicitly recovering to the sample tree and confirming that recovery persists.
+9. Testing storage failure where practical.
+10. Completing the protected reviewer workflow: Drag → Connect → Edit → Export JSON → Validate.
+
+Clearly distinguish browser checks that were performed from checks that were only covered by automated tests.
+
+If browser access is unavailable, report that limitation honestly rather than claiming manual verification.
+
+## 18. Architecture and documentation audit
+
+Review the final implementation for:
+
+- Duplicated validation or persistence logic.
+- Giant components.
+- Unnecessary abstractions.
+- Circular imports.
+- Unsafe casts or newly introduced `any`.
+- Unnecessary dependencies.
+- Transient UI state accidentally included in persistence.
+- Undo/redo history accidentally included in persistence.
+- Startup races.
+- Duplicate store subscriptions.
+- Stale snapshots or false save-success states.
+- Missing cleanup.
+- Incorrect recovery behavior.
+- Regressions in existing Days 1–15 functionality.
+
+Update `ARCHITECTURE.md` to document:
+
+- The local persistence module and its responsibility.
+- The persisted document format and versioning.
+- Which state is persisted and which state is intentionally excluded.
+- Client-side restoration and initialization order.
+- Autosave and save-status behavior.
+- Error handling and explicit recovery.
+- The relationship between persistence and undo/redo.
+- The distinction between local persistence and Day 15 JSON import/export.
+- Any known limitations, including localStorage availability and retention.
+
+Keep the documentation accurate to the implemented code. Do not document planned behavior as if it already exists.
+
+## 19. Required execution and verification
+
+After implementation, inspect the available project scripts and run the appropriate actual commands for:
+
+- The complete automated test suite.
+- ESLint / lint.
+- TypeScript type checking, if configured.
+- A production build.
+
+Use the actual commands defined by the repository. Do not invent successful results or change scripts just to make the checks appear successful.
+
+If a command fails:
+
+1. Inspect the real error.
+2. Fix issues introduced by your changes.
+3. Rerun the relevant checks.
+4. Report any remaining failures honestly.
+
+Do not claim that tests, lint, type checking, builds, or manual browser tests passed unless you actually ran them and observed the results.
+
+Before finishing, inspect the final diff and ensure changes are limited to the files needed for Day 16.
+
+## 20. Final acceptance criteria
+
+Day 16 is complete only when all applicable criteria below are satisfied:
+
+- The current graph and supported settings persist across refreshes.
+- Initialization is safe in Next.js and does not overwrite existing saved data prematurely.
+- Invalid or incompatible stored data is handled without crashing the application.
+- Recovery is explicit and does not silently destroy the last saved document.
+- Autosave tracks the latest graph and reports status truthfully.
+- Failed writes do not silently discard in-memory changes.
+- Undo/redo history is never persisted and starts fresh after restoration.
+- Import, undo, redo, export, and validation remain compatible with Day 15.
+- Reset Sample Tree is confirmed, atomic, and correctly persisted when possible.
+- Collapsed state and graph identity are preserved.
+- Existing graph relationship rules remain enforced.
+- All Days 1–15 features remain functional.
+- Tests, lint, type checking, and production build have been run as applicable, with actual results reported.
+- Documentation reflects the real implementation.
+- No unrelated changes, commits, or destructive Git operations were made.
+
+## 21. Required final report
+
+When finished, provide a concise but evidence-based report containing:
+
+1. **Implementation summary:** What was implemented and how it fits the existing architecture.
+2. **Files changed:** List each modified or created file and its purpose.
+3. **Persistence behavior:** Explain initialization, autosave, restoration, save status, reset, and recovery.
+4. **History behavior:** Explain how undo/redo is kept separate from persisted state.
+5. **Tests:** Exact commands and actual pass/fail counts.
+6. **Lint, TypeScript, and build:** Exact commands and observed results.
+7. **Browser verification:** List checks actually performed and identify any not performed.
+8. **Regression review:** Confirm which existing features and protected workflows were verified.
+9. **Known limitations:** Include any outstanding issues or unverified behavior.
+10. **Final status:** State whether Day 16 acceptance criteria are met, partially met, or blocked.
+
+Do not claim 100/100, perfect quality, or production readiness merely because the implementation compiles or tests pass.
+
+**Final instruction:** Implement Day 16 completely in the existing project, verify the actual result, preserve all previous work, and stop. Prioritize correctness and reliability over adding features that were not requested.

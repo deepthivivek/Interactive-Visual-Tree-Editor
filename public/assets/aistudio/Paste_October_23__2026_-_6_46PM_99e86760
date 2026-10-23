@@ -1,0 +1,894 @@
+# DAY 17 — FINAL DEFINITIVE MASTER PROMPT
+## Interactive Visual Tree Editor
+### Premium UI/UX • Advanced Workflow Editing • Graph Integrity • Accessibility • Data Safety • Comprehensive Testing • Release Audit • Feature Lock
+
+## YOUR ROLE
+
+Act as a senior software engineer, React and TypeScript architect, graph-algorithm specialist, product designer, accessibility engineer, QA lead, and software release reviewer.
+
+You are working on my existing **Interactive Visual Tree Editor**, which already contains functionality and work completed during Days 1–16.
+
+Your job is to inspect the real repository, preserve every existing requirement and working feature, identify genuine problems, implement justified Day 17 improvements, test the application, and deliver a professional result.
+
+I want actual implementation in the existing project—not just recommendations, a plan, sample code, a mockup, or a list of future ideas.
+
+The final product should look professional, feel intuitive, remain technically reliable, and demonstrate the quality expected from a serious software engineering portfolio project.
+
+**Core principle: improve the product without breaking the project.**
+
+---
+
+# 1. SUCCESS CRITERIA AND PRIORITIES
+
+Follow this priority order:
+
+1. Preserve all Days 1–16 functionality and requirements.
+2. Protect graph correctness and user data.
+3. Fix confirmed bugs and prevent regressions.
+4. Improve the interface's visual consistency and usability.
+5. Implement high-value advanced editing and navigation improvements.
+6. Improve accessibility and responsive behavior.
+7. Verify important workflows using tests and available browser tools.
+8. Review the final code changes and document remaining limitations.
+
+Do not sacrifice correctness, reliability, or maintainability for visual effects or feature count.
+
+Do not claim that a perfect score is guaranteed. Demonstrate quality through implementation and evidence.
+
+# 2. BASELINE AUDIT BEFORE IMPLEMENTATION
+
+Before modifying any code, inspect the repository.
+
+Review:
+
+- Project structure and entry points.
+- `package.json`, package manager, and available scripts.
+- React and TypeScript configuration.
+- Styling system and existing component conventions.
+- Graph-rendering library and graph data structures.
+- Node and edge components.
+- Toolbar, node palette, canvas, inspector, validation panel, and dialogs.
+- Graph state management and history.
+- Centralized relationship rules and validation.
+- Node creation, editing, deletion, duplication, and connections.
+- Auto Layout and collapse/expand.
+- Search, selection, zoom, and navigation.
+- JSON import/export.
+- Local persistence, autosave, recovery, and supported settings.
+- Existing unit, integration, and end-to-end tests.
+- Existing Day 15 and Day 16 fixes.
+- Relevant documentation, TODOs, and known defects.
+
+## Baseline requirements
+
+Establish what currently works before changing it.
+
+Where practical:
+
+- Run the existing test suite.
+- Run linting and type checking.
+- Run the production build.
+- Record pre-existing failures.
+- Identify the current implementation of each critical requirement.
+- Identify high-risk areas where changes could cause regressions.
+
+Do not assume all previously reported test results remain true. Verify the actual repository.
+
+If a check cannot run because of environment limitations, record it as unverified.
+
+## Repository safety
+
+- Do not scaffold a replacement application.
+- Do not discard user changes.
+- Do not reset the repository or use destructive Git commands.
+- Do not overwrite unrelated files.
+- Do not rewrite working architecture without a concrete reason.
+- Do not remove existing features to simplify implementation.
+- Do not introduce unnecessary dependencies or frameworks.
+- Do not weaken TypeScript, lint, or test rules.
+- Do not disable meaningful tests to conceal failures.
+
+Continue the existing codebase and follow its established conventions.
+
+# 3. REQUIREMENTS TRACEABILITY
+
+Create a requirements checklist before implementation.
+
+Classify each important requirement as:
+
+- **Existing and verified**
+- **Existing but needs verification**
+- **Defect found**
+- **Day 17 improvement**
+- **Deferred**
+
+Map important requirements to their implementation locations and relevant tests.
+
+At the end, report which requirements were preserved, corrected, improved, or left unverified.
+
+Do not rewrite a feature that already works simply to produce more code changes.
+
+# 4. SCOPE CONTROL AND FEATURE LOCK
+
+Day 17 is a quality, usability, and reliability milestone.
+
+Do not introduce:
+
+- A backend or remote database.
+- Authentication or authorization.
+- Role-based access control.
+- Real-time collaboration.
+- A workflow execution engine.
+- AI integrations or external API dependencies.
+- New node types.
+- An incompatible graph schema.
+- A replacement state-management framework.
+- Unnecessary dependencies.
+- Large architectural rewrites without a demonstrated need.
+
+Advanced features are welcome only when they solve a real user problem, fit the existing architecture, and can be tested reliably.
+
+Prioritize contextual editing, keyboard accessibility, search navigation, validation diagnostics, large-graph usability, safe destructive operations, and useful graph statistics.
+
+Do not duplicate features that already exist.
+
+If an improvement is too risky or too large for Day 17, document it as deferred work.
+
+# 5. GRAPH MODEL AND RELATIONSHIP RULES
+
+## 5.1 Existing node types
+
+Preserve exactly these node types:
+
+- Root
+- Rule
+- Condition
+- Action
+
+Do not introduce new node types.
+
+## 5.2 Relationship rules
+
+Preserve these project-defined relationships:
+
+| Parent | Allowed child |
+|---|---|
+| Root | Rule |
+| Rule | Condition |
+| Rule | Action |
+| Condition | Action |
+| Action | None |
+
+These are application-specific design rules, not claims about an official industry standard.
+
+Keep them centralized in `src/lib/relationshipRules.ts` or the existing equivalent.
+
+Reuse the same source of truth for:
+
+- Interactive connection creation.
+- Graph-operation helpers.
+- Validation.
+- Context-sensitive child creation.
+- JSON import.
+- Copy/paste.
+- Node and subtree duplication.
+- Other relationship checks.
+
+Never duplicate or contradict the relationship rules in separate UI components.
+
+## 5.3 Incomplete graph editing
+
+The editor must support incomplete intermediate graph states, including:
+
+- An empty canvas.
+- A Root without children.
+- Unconnected nodes.
+- Disconnected subtrees.
+- Multiple Roots.
+- Orphaned nodes.
+- Missing relationships.
+
+These states must not automatically prevent users from creating or editing nodes.
+
+The validator decides whether the complete graph satisfies the completed-tree requirements.
+
+Do not force the graph to be valid after every editing operation.
+
+## 5.4 Connection validation
+
+Reject:
+
+- Self-connections.
+- Incompatible node-type relationships.
+- Duplicate edges.
+- Connections that introduce cycles.
+- A second parent for an already-parented node.
+- References to nonexistent nodes.
+- Malformed edge endpoints.
+
+Rejected connections must leave the graph unchanged and provide understandable feedback.
+
+## 5.5 Completed-tree validation
+
+A valid completed tree must have:
+
+- Exactly one Root.
+- A Root with no parent.
+- Exactly one valid parent for every non-root node.
+- Only permitted relationships.
+- No cycles.
+- No duplicate edges.
+- No invalid edge references.
+- No disconnected or orphaned nodes.
+
+Validation must distinguish incomplete and invalid graphs from valid completed trees.
+
+Do not report an incomplete graph as valid merely because it contains no immediately visible errors.
+
+## 5.6 Unique IDs
+
+Maintain unique node IDs after:
+
+- Node creation.
+- Palette drag-and-drop.
+- Duplication.
+- Subtree duplication.
+- Copy/paste.
+- JSON import.
+- Restoration when normalization is required.
+
+When duplicating or pasting subtrees, generate new IDs and correctly remap internal edge references.
+
+Do not create collisions with existing graph nodes.
+
+## 5.7 Collapse and expand
+
+Preserve `node.data.collapsed` or the existing equivalent.
+
+Collapse changes visibility only. Descendants and their edges must remain in the underlying graph.
+
+Validation must inspect the actual graph, not treat hidden descendants as missing or orphaned.
+
+Collapse and expand must remain reversible.
+
+# 6. UNDO/REDO AND HISTORY
+
+Preserve the existing history implementation, including Zundo if already used.
+
+History must track graph nodes and edges only.
+
+Selection, hover, search text, menus, inspector tabs, and dialogs must not create graph history entries.
+
+Verify:
+
+| Operation | Required result |
+|---|---|
+| One completed node drag | Exactly one history entry |
+| One Auto Layout | Exactly one history entry |
+| One subtree paste | Exactly one history entry |
+| One collapse or expand | Exactly one history entry |
+| One successful JSON import | Exactly one history entry |
+| Failed JSON import | No graph change or history entry |
+| Selection or search | No graph history entry |
+
+Undo and redo must restore correct graph state, including positions, edges, node properties, and tracked collapse state.
+
+Prevent a drag operation from producing excessive history entries during pointer movement.
+
+Test repeated undo/redo operations and verify that graph references and IDs remain consistent.
+
+# 7. JSON IMPORT AND EXPORT
+
+Preserve the established graph document format:
+
+`{"version":1,"nodes":[],"edges":[]}`
+
+The exported document must contain supported graph data and must not include history or transient UI state.
+
+## 7.1 Import validation
+
+Validate:
+
+- JSON syntax.
+- Document structure.
+- Supported version.
+- Node types and IDs.
+- Edge references.
+- Relationship rules.
+- Duplicate IDs and duplicate edges.
+- Cycles and forbidden structures.
+- Data size and resource limits.
+- Prototype-pollution keys, including `__proto__`, `constructor`, and `prototype`, including nested imported data where applicable.
+
+Incomplete graphs can be imported if they satisfy the supported document schema and structural safety requirements.
+
+An empty graph document is valid.
+
+An edge referencing a nonexistent node is invalid.
+
+## 7.2 Transactional import
+
+The importer must:
+
+1. Parse the document.
+2. Validate the input and safety constraints.
+3. Prepare the candidate graph without mutating the current graph.
+4. Commit only after required checks succeed.
+5. Create exactly one history entry on successful import.
+
+On failure, preserve the current graph and create no history entry.
+
+Do not partially replace graph data.
+
+## 7.3 Export correctness
+
+Ensure export:
+
+- Preserves the version 1 format.
+- Includes supported graph data, positions, and node properties.
+- Excludes history and transient UI state.
+- Produces JSON that can be imported again.
+- Provides truthful success/failure feedback.
+
+## 7.4 Import/export modal
+
+Inspect the existing modal and preserve the previous fix for incorrect mode selection when reopening the modal with a different requested mode.
+
+Verify:
+
+- Import opens in Import mode.
+- Export opens in Export mode.
+- Reopening updates the active mode.
+- Import and Export actions are visually distinct.
+- Switching modes does not unexpectedly erase entered JSON.
+- File and paste workflows work where implemented.
+- Errors appear in the correct mode.
+- Repeated open/close cycles work correctly.
+
+Do not claim that file selection, clipboard access, or downloads work unless they have been tested.
+
+# 8. LOCAL PERSISTENCE AND RECOVERY
+
+Preserve the Day 16 persistence implementation.
+
+Known project details to verify against the code:
+
+- Storage key: `interactive_tree_editor_v1_store`.
+- Schema version: 1.
+- Existing 5 MiB size limit.
+- Approximately 600 ms debounced autosave.
+- Persistence of graph data and supported settings.
+- Exclusion of transient UI state and undo/redo history.
+- Recovery from corrupted storage.
+- Retry and reset/recovery functionality.
+- Fresh history after restore.
+- Empty graph acceptance.
+- Rejection of edges that reference nonexistent nodes.
+
+Do not duplicate existing persistence systems.
+
+Verify:
+
+1. Graph edits trigger persistence.
+2. Transient UI changes do not cause unnecessary saves.
+3. Debouncing prevents excessive storage writes.
+4. Save status accurately reflects the real operation.
+5. Storage quota and unavailable-storage errors are handled.
+6. Failed saves never report success.
+7. Retry actually retries.
+8. Reset and recovery handle destructive actions safely.
+9. Corrupted storage does not crash the application.
+10. Recoverable data is not silently overwritten.
+11. Restored data is validated.
+12. Restored history starts fresh.
+13. Supported settings survive reloads.
+14. Empty graphs can be saved and restored.
+15. No backend or remote database is introduced.
+
+Preserve existing save-status vocabulary such as `idle`, `unsaved`, `saving`, `saved`, and `error`, or its equivalent.
+
+Distinguish in-memory changes from successfully persisted changes.
+
+Use unsaved-change warnings only where meaningful.
+
+# 9. PREMIUM UI/UX DESIGN
+
+Improve the actual application using the existing styling system.
+
+## 9.1 Visual direction
+
+Aim for:
+
+- Modern, clean, professional design.
+- Strong visual hierarchy.
+- Consistent spacing and alignment.
+- Readable typography.
+- Consistent borders and corner radii.
+- Subtle elevation.
+- High text contrast.
+- Restrained accent colors.
+- Consistent icons and button styles.
+- Clear separation between canvas and panels.
+- Minimal decorative clutter.
+
+Avoid excessive gradients, glowing effects, glassmorphism, oversized cards, random colors, distracting animations, and decoration that competes with the graph.
+
+The graph must remain the primary workspace.
+
+## 9.2 Layout
+
+Polish existing elements:
+
+- Application header.
+- Main toolbar.
+- Node palette.
+- Canvas.
+- Inspector.
+- Validation panel.
+- Import/export modal.
+- Save status.
+- Empty, loading, and error states.
+
+Maintain a sensible balance between the graph canvas and surrounding panels.
+
+## 9.3 Toolbar
+
+Polish supported actions for:
+
+- Adding nodes.
+- Connecting nodes.
+- Undo and redo.
+- Auto Layout.
+- Validation.
+- Search.
+- Zoom and fit-to-view.
+- Import and export.
+- Save status.
+- Other existing graph operations.
+
+Only display actions that actually exist.
+
+Group related controls logically. Give icon-only buttons accessible labels and helpful tooltips.
+
+Disable unavailable actions when appropriate.
+
+## 9.4 Node palette and nodes
+
+Make Root, Rule, Condition, and Action easy to distinguish through consistent labels, icons, color semantics, typography, spacing, and focus states.
+
+Do not rely on color alone.
+
+Preserve existing click-to-add and drag-to-add functionality.
+
+Improve node presentation with:
+
+- Clear type identification.
+- Readable titles.
+- Useful summaries of supported data.
+- Distinct connection handles.
+- Consistent spacing.
+- Selected, hovered, focused, and invalid states.
+- Sensible long-text handling.
+- Clear collapsed-state indicators.
+- Understandable validation feedback.
+
+Do not overcrowd nodes or hide critical information behind hover-only interactions.
+
+## 9.5 Edges and connections
+
+Use consistent line weights, clear endpoints, correct direction, and restrained selection emphasis.
+
+Make relationships easy to follow without excessive visual effects.
+
+## 9.6 Inspector and property editing
+
+Improve existing property editing with clear labels, appropriate inputs, helpful placeholders, inline validation, understandable errors, and correct synchronization with the selected node.
+
+Editing one node must not accidentally modify another.
+
+Do not invent unsupported properties.
+
+## 9.7 Validation diagnostics
+
+Present structural issues clearly, including:
+
+- Missing or multiple Roots.
+- Root parent violations.
+- Missing non-root parents.
+- Multiple parents.
+- Forbidden relationships.
+- Cycles.
+- Duplicate edges.
+- Invalid references.
+- Other existing structural problems.
+
+Provide useful node identification and concise remediation guidance.
+
+Where feasible, allow a user to select an issue and navigate to the corresponding node.
+
+Validation must inspect collapsed descendants.
+
+## 9.8 Empty, loading, and error states
+
+Provide clear states for empty canvas, no selection, no search results, valid graph, incomplete graph, invalid graph, failed import, failed save, corrupted data, and unavailable actions.
+
+Explain the next useful action where appropriate.
+
+Never display fake success messages.
+
+# 10. ADVANCED USABILITY IMPROVEMENTS
+
+Inspect existing functionality before adding anything.
+
+## 10.1 Contextual node actions
+
+Where compatible with the current design, provide actions for editing properties, adding an allowed child, duplicating a node or subtree, collapsing or expanding, and deleting with appropriate safeguards.
+
+Do not offer invalid child types. Action nodes cannot have children.
+
+Every graph-changing action must preserve ID uniqueness, relationship rules, graph integrity, and history behavior.
+
+## 10.2 Keyboard support
+
+Where appropriate, support shortcuts for undo/redo, deleting a selected node, closing dialogs, search, fit-to-view, and other common existing operations.
+
+Do not override browser shortcuts unnecessarily.
+
+Do not trigger graph shortcuts while users type into inputs or textareas.
+
+Avoid duplicate keyboard handlers, preserve visible focus, and provide discoverable shortcut hints where useful.
+
+## 10.3 Search and navigation
+
+Improve existing search to locate nodes by title or relevant supported fields.
+
+Provide clear no-result feedback and make matching nodes easy to find.
+
+Search must not modify graph data or create history entries.
+
+## 10.4 Large-graph navigation
+
+Improve fit-to-view, zoom, selection emphasis, stable positions, and rendering where supported.
+
+Polish an existing minimap or navigation aid if present.
+
+Add new navigation infrastructure only if justified, compatible, and testable.
+
+## 10.5 Graph statistics
+
+Where useful, display compact and accurate node counts, edge counts, counts by node type, validation status, and save status.
+
+Derive every statistic from actual state. Do not use hardcoded values.
+
+## 10.6 Safe destructive actions
+
+Make deletion, reset, and other destructive operations understandable.
+
+Confirm operations that could cause meaningful data loss. Avoid unnecessary confirmation dialogs for harmless actions.
+
+Prevent repeated clicks from creating duplicate operations.
+
+## 10.7 Interaction feedback
+
+Use consistent loading, success, failure, disabled, hover, focus, and pressed states.
+
+Never claim an operation succeeded before it actually succeeds.
+
+# 11. RESPONSIVE DESIGN
+
+Check these viewport sizes:
+
+- 1440 × 900.
+- 1280 × 800.
+- 1024 × 768.
+- 768 × 1024.
+- 390 × 844.
+
+Adapt narrower layouts using existing responsive mechanisms or appropriate collapsible panels.
+
+Verify:
+
+- No accidental horizontal page overflow.
+- No clipped primary controls.
+- Dialogs fit the viewport.
+- Inputs remain usable.
+- Text remains readable.
+- Touch targets are appropriately sized.
+- Important actions remain accessible.
+- The canvas remains navigable.
+- Side panels do not consume the entire screen.
+
+If the graph library limits small-screen editing, document the limitation honestly.
+
+# 12. ACCESSIBILITY
+
+Improve accessibility without unnecessary dependencies.
+
+Verify:
+
+- Semantic controls.
+- Accessible names for icon-only buttons.
+- Visible keyboard focus.
+- Appropriate contrast.
+- Meaningful dialog titles.
+- Sensible dialog focus behavior.
+- Keyboard-operable primary controls.
+- Accessible node actions.
+- Errors not communicated by color alone.
+- Live announcements for important status changes where supported.
+- Reduced-motion preferences for nonessential animation.
+- No essential information available only on hover.
+
+# 13. PERFORMANCE AND STABILITY
+
+Inspect real performance risks.
+
+Check unnecessary rerenders, expensive validation, excessive history entries, autosave frequency, repeated layout calculations, large graph rendering, large JSON inputs, event-listener cleanup, memory leaks, stale state, and asynchronous race conditions.
+
+Optimize only where justified.
+
+Do not introduce complex optimization abstractions without a demonstrated benefit.
+
+# 14. RISK-BASED TESTING
+
+Prioritize data safety and graph correctness before cosmetic details.
+
+## Critical risk
+
+Test transactional imports, failed-import rollback, persistence recovery, unique IDs, invalid references, undo/redo, refresh restoration, and prototype-pollution protection.
+
+## High risk
+
+Test relationship rules, cycle rejection, duplicate edges, multiple parents, incomplete graphs, collapse/expand, node editing, deletion, subtree duplication, and Auto Layout history.
+
+## Medium risk
+
+Test search, contextual actions, keyboard shortcuts, dialogs, responsive behavior, focus handling, save feedback, and empty/error states where supported.
+
+## Lower risk
+
+Review spacing, typography, icons, alignment, and nonessential animations after correctness issues are resolved.
+
+Add or update focused tests. Do not rewrite the entire test suite merely to increase test count.
+
+# 15. MANDATORY REGRESSION WORKFLOW
+
+Test the complete user journey:
+
+**Create/Drag → Connect → Edit → Undo → Redo → Validate → Export JSON → Import JSON → Refresh/Restore → Validate Again**
+
+1. Create or drag a node using a supported method.
+2. Confirm its ID is unique.
+3. Create a permitted connection.
+4. Attempt an invalid connection and confirm rejection.
+5. Edit a node property.
+6. Undo the relevant operation.
+7. Redo it and verify the expected state.
+8. Validate the graph.
+9. Export a version 1 JSON document.
+10. Import the exported document into the intended editor state.
+11. Verify data, positions, IDs, and edges remain consistent where expected.
+12. Confirm successful import creates exactly one history entry.
+13. Refresh and verify persistence restoration.
+14. Confirm the restored graph is usable and history starts fresh.
+15. Validate again and compare results.
+
+Do not claim browser completion unless the workflow was actually executed.
+
+If browser automation is unavailable, run the strongest available checks and mark browser-only steps UNVERIFIED.
+
+# 16. VISUAL QUALITY ASSURANCE
+
+Inspect the rendered application using available browser or screenshot tools.
+
+Review major interface areas at desktop and narrow viewport sizes.
+
+Check misalignment, inconsistent spacing, text overflow, clipped controls, contrast, selected states, overlapping panels, node readability, empty states, modal overflow, error feedback, unnecessary decoration, and responsive behavior.
+
+Fix visible defects rather than merely listing them.
+
+If visual inspection is unavailable, say so explicitly.
+
+# 17. SAMPLE DATA AND PRODUCT LANGUAGE
+
+Preserve existing mock sample data.
+
+The identifiers `FINRA-2210`, `SEC-17a-4`, and `DISC-09` must remain labelled **Sample Compliance Template** data.
+
+Do not present these as officially approved regulatory workflows or authoritative compliance advice.
+
+Keep the editor generic enough for different business decision-tree scenarios.
+
+Do not convert it into a dedicated expense-approval or employee-management application.
+
+Correct spelling, capitalization, inconsistent labels, and confusing messages.
+
+Do not add fake metrics or unsupported enterprise-readiness claims.
+
+# 18. CODE QUALITY
+
+- Use strict TypeScript.
+- Avoid `any` and unsafe assertions.
+- Centralize relationship and validation logic.
+- Preserve graph and persistence contracts.
+- Keep components focused.
+- Avoid duplicate handlers and circular dependencies.
+- Avoid unnecessary global state and dependencies.
+- Handle errors explicitly.
+- Clean up event listeners and subscriptions.
+- Do not silently swallow exceptions.
+- Do not disable tests to hide defects.
+- Do not modify unrelated functionality without justification.
+
+Prefer small, reliable, maintainable changes.
+
+# 19. VERIFICATION COMMANDS
+
+Inspect the actual `package.json` scripts and use the existing package manager.
+
+Run the available checks for:
+
+1. Unit tests.
+2. Integration tests.
+3. Linting.
+4. Type checking.
+5. Production build.
+6. Browser or end-to-end tests.
+
+Do not invent command names or claim success without execution.
+
+For failures, record the actual error, identify whether it is pre-existing or introduced by Day 17, fix regressions, and rerun relevant checks.
+
+If a check cannot run, report **UNVERIFIED**.
+
+A passing build does not prove every interaction works.
+
+# 20. FINAL DIFF AUDIT
+
+Review the actual final diff and confirm:
+
+- Days 1–16 functionality is preserved.
+- No unrelated files were changed unnecessarily.
+- No secrets or credentials were added.
+- No backend or remote database was introduced.
+- No graph rules were weakened.
+- No fake data or misleading claims were introduced.
+- No temporary debugging code remains.
+- No tests were disabled to hide defects.
+- No unnecessary dependencies were added.
+- Import/export and persistence remain reliable.
+- New behavior has appropriate tests where practical.
+
+Fix issues discovered during this review.
+
+# 21. FINAL PROFESSIONAL-PRODUCT QUALITY GATE
+
+## A. Consistency
+
+Ensure that the toolbar, palette, canvas, inspector, validation panel, and dialogs share consistent interaction patterns, labels, spacing, icons, colors, errors, and status indicators.
+
+## B. User confidence
+
+Users should understand which node is selected, which changes have been made, whether changes have been saved locally, why an operation failed, how to recover from errors, whether an operation can be undone, and whether the graph is incomplete, invalid, or valid.
+
+Avoid redundant confirmations and misleading success messages.
+
+## C. Efficient editing
+
+Evaluate whether users can easily add a node, connect nodes, edit properties, find nodes, correct validation issues, arrange the graph, undo/redo, import/export, and restore saved work.
+
+Reduce unnecessary interaction steps where practical.
+
+## D. Release decision
+
+Classify remaining issues:
+
+- **Blocker:** data loss, graph corruption, a broken core workflow, or a serious security issue.
+- **Major:** an important feature is unreliable or inaccessible.
+- **Minor:** a noncritical visual or usability defect.
+- **Deferred:** valuable work outside Day 17.
+
+Fix blockers and regressions introduced by Day 17. Report pre-existing issues honestly.
+
+# 22. ACCEPTANCE SCORECARD
+
+Report each criterion as **PASS**, **FAIL**, or **UNVERIFIED**.
+
+1. Existing Days 1–16 functionality preserved.
+2. Relationship rules centralized and consistent.
+3. Incomplete graphs remain editable.
+4. Completed-tree validation is correct.
+5. Invalid connections are rejected safely.
+6. IDs remain unique after node-creating operations.
+7. Collapse/expand preserves descendants.
+8. Undo/redo behavior is correct.
+9. JSON import is transactional and safe.
+10. JSON export preserves the supported format.
+11. Import/export modal modes work correctly.
+12. Persistence and recovery work correctly.
+13. UI/UX is consistent and professional.
+14. Advanced usability improvements work as implemented.
+15. Responsive layouts are checked at available target sizes.
+16. Accessibility improvements are checked.
+17. Test, lint, type-check, and build results are documented accurately.
+18. The regression workflow was tested or marked unverified.
+19. No backend or out-of-scope architecture was introduced.
+20. The final diff has been reviewed.
+21. Remaining limitations are documented honestly.
+
+Do not mark a criterion PASS merely because source code exists. Use appropriate execution evidence.
+
+Also assess these seven quality categories:
+
+- Functional correctness.
+- Visual consistency.
+- Usability.
+- Accessibility.
+- Reliability and recovery.
+- Maintainability.
+- Verification completeness.
+
+Explain the evidence for each score. Do not assign an arbitrary perfect score.
+
+# 23. FINAL IMPLEMENTATION REPORT
+
+Provide:
+
+## A. Implementation summary
+What was actually improved.
+
+## B. Files changed
+Important files and reasons.
+
+## C. UI/UX improvements
+Concrete changes implemented.
+
+## D. Advanced usability improvements
+Features actually implemented or refined.
+
+## E. Bug fixes
+Confirmed defects and corrections.
+
+## F. Requirements traceability
+Requirements preserved, corrected, improved, or unverified.
+
+## G. Regression testing
+Actual end-to-end and automated results.
+
+## H. Verification results
+Commands executed and their actual outcomes.
+
+## I. Acceptance scorecard
+All 21 criteria with PASS, FAIL, or UNVERIFIED.
+
+## J. Quality scorecard
+Evidence-based assessment of the seven categories.
+
+## K. Remaining limitations
+Anything incomplete or unverified and why.
+
+## L. Deferred improvements
+Only genuinely valuable work intentionally excluded.
+
+## M. Feature-lock confirmation
+Confirm that no new milestone or unnecessary feature expansion started.
+
+# 24. FINAL EXECUTION INSTRUCTION
+
+Inspect the actual repository first.
+
+Implement the highest-value, in-scope improvements. Preserve all existing requirements. Fix confirmed defects. Add or update focused tests. Run available checks. Inspect the UI where possible. Execute the mandatory regression workflow where possible. Review the final diff.
+
+Do not stop after planning. Do not return only recommendations. Do not rewrite working functionality unnecessarily. Do not fabricate test results. Do not claim browser behavior was verified unless it was actually tested.
+
+If a feature already works correctly, preserve it.
+
+If an improvement cannot be implemented safely within Day 17, document it rather than adding unreliable functionality.
+
+**Success means a more professional, usable, accessible, reliable, and maintainable application—not a larger codebase or an unnecessary collection of features.**
+
+When all in-scope work is complete, finish with this exact status line:
+
+**DAY 17 COMPLETE — FEATURE LOCK STARTED**
+
+Do not start Day 18. Do not begin another feature-development milestone unless I explicitly authorize it.

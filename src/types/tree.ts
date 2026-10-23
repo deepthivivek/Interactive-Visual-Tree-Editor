@@ -124,6 +124,16 @@ export interface TreeStoreState {
   checkpoints: import('../lib/checkpoints').GraphCheckpoint[];
   auditLog: import('../lib/operationAudit').OperationAuditEntry[];
 
+  // Day 16 Persistence State
+  persistenceStatus: 'idle' | 'restoring' | 'ready' | 'recovery-required' | 'unavailable';
+  saveStatus: 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
+  saveErrorMessage: string | null;
+  lastSavedAt: number | null;
+  corruptedPayload: string | null;
+  recoveryError: string | null;
+  isResetConfirmationOpen: boolean;
+  persistedSettings: import('../lib/persistence').PersistedSettings;
+
   // Actions
   setNodes: (nodes: TreeNode[]) => void;
   setEdges: (edges: TreeEdge[]) => void;
@@ -271,4 +281,15 @@ export interface TreeStoreState {
   toggleNodeSelection: (nodeId: string, additive?: boolean) => void;
   copySelectedNodes: () => boolean;
   deleteSelectedNodes: () => boolean;
+
+  // Day 16 Persistence Actions
+  initializePersistence: () => Promise<void>;
+  scheduleAutosave: () => void;
+  saveNow: () => boolean;
+  openResetConfirmation: () => void;
+  closeResetConfirmation: () => void;
+  confirmResetSampleTree: () => boolean;
+  recoverWithSampleTree: () => boolean;
+  recoverWithEmptyTree: () => boolean;
+  dismissRecoveryModal: () => void;
 }

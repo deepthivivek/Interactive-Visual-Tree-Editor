@@ -21,10 +21,6 @@ import type { TreeNodeData } from '../../types/tree';
 import { useTreeStore } from '../../store/treeStore';
 import { getDescendantCount, getSubtreeNodeIds } from '../../lib/subtree';
 
-/**
- * UI mapping from serializable icon identifiers to Lucide React icon components.
- * Verified against installed lucide-react package.
- */
 const ICON_MAP: Record<NodeIconId, LucideIcon> = {
   root: Layers,
   rule: Shield,
@@ -34,17 +30,14 @@ const ICON_MAP: Record<NodeIconId, LucideIcon> = {
 };
 
 /**
- * Custom Node Component for the Interactive Visual Tree Editor (Day 3).
+ * Custom Node Component for the Interactive Visual Tree Editor (Day 17 Refinement).
  *
- * Design features:
- * - Pure data-driven presentation using shared `nodeTypeConfig`
- * - Consistent 215px compact width for clean hierarchical layouts
- * - Visually distinct type styling (Root, Rule, Condition, Action)
- * - Distinct states: Default, Hover, Selected, Focus-visible
- * - React Flow target (top) and source (bottom) handles for sample graph edges
- * - Non-interactive handles (`isConnectable={false}`) preventing premature connection creation
- * - Accessible truncation with title attribute and screen-reader context
- * - Subtree collapse/expand button with hidden descendant badge
+ * Features:
+ * - Data-driven presentation with centralized nodeTypeConfig
+ * - High-contrast accessible typography and clear type distinction
+ * - Subtle unboxed metadata indicators (parameter and tag counts)
+ * - Distinct focus-visible and active selection states
+ * - Reversible subtree collapse/expand with accessible ARIA tags
  */
 export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected }) => {
   const nodeData = data as TreeNodeData;
@@ -63,12 +56,10 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
   const toggleNodeCollapse = useTreeStore((state) => state.toggleNodeCollapse);
   const isCollapsed = Boolean(nodeData?.collapsed);
 
-  // Resolve configuration from single source of truth
   const nodeType = type || (typeof nodeData?.type === 'string' ? nodeData.type : 'unknown');
   const typeConfig = getNodeTypeConfig(nodeType);
   const statusConfig = getNodeStatusConfig(status);
 
-  // Map icon component safely
   const IconComponent = ICON_MAP[typeConfig.iconId] || CircleHelp;
 
   const selectedSubtreeRootId = useTreeStore((state) => state.selectedSubtreeRootId);
@@ -101,6 +92,9 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
   }
 
   const dimClass = isDimmed ? 'opacity-50 transition-opacity' : '';
+
+  const paramCount = nodeData?.parameters ? Object.keys(nodeData.parameters).length : 0;
+  const tagCount = nodeData?.tags ? nodeData.tags.length : 0;
 
   return (
     <div
@@ -154,7 +148,7 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
         )}
       </div>
 
-      {/* Body: Node Label & Optional Rule ID */}
+      {/* Body: Node Label & Optional Rule ID & Metadata */}
       <div className="px-3 py-2.5">
         <div
           className="text-xs font-semibold text-slate-900 leading-snug line-clamp-2 break-words"
@@ -173,6 +167,15 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
             </span>
           </div>
         )}
+
+        {/* Quiet unboxed metadata: parameters and tags summary */}
+        {(paramCount > 0 || tagCount > 0) && (
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+            {paramCount > 0 && <span>{paramCount} param{paramCount !== 1 ? 's' : ''}</span>}
+            {paramCount > 0 && tagCount > 0 && <span aria-hidden="true">·</span>}
+            {tagCount > 0 && <span>{tagCount} tag{tagCount !== 1 ? 's' : ''}</span>}
+          </div>
+        )}
       </div>
 
       {/* Bottom Source Handle (Parent outgoing handle in hierarchy) */}
@@ -183,7 +186,7 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
         className="!w-2.5 !h-2.5 !bg-slate-400 hover:!bg-blue-600 !border-2 !border-white !rounded-full !-bottom-1.5 transition-colors cursor-crosshair"
       />
 
-      {/* Subtree Collapse / Expand Badge (Day 12) */}
+      {/* Subtree Collapse / Expand Badge */}
       {hasChildren && (
         <button
           type="button"
@@ -191,7 +194,7 @@ export const CustomNode: React.FC<NodeProps> = memo(({ id, type, data, selected 
             e.stopPropagation();
             toggleNodeCollapse(id);
           }}
-          className={`absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold shadow-xs transition-transform hover:scale-105 cursor-pointer select-none ${
+          className={`absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold shadow-xs transition-transform hover:scale-105 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-blue-500 outline-hidden ${
             isCollapsed
               ? 'px-2 py-0.5 bg-amber-500 text-white border border-amber-600'
               : 'opacity-0 group-hover:opacity-90 w-5 h-5 justify-center bg-slate-100 text-slate-600 border border-slate-300 hover:bg-white hover:text-slate-900'

@@ -7,15 +7,18 @@ import { TreeCanvasArea } from './TreeCanvasArea';
 import { PropertiesInspectorSidebar } from './PropertiesInspectorSidebar';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
-import { JsonImportExportModal } from './JsonImportExportModal';
+import { ExportJsonModal } from './ExportJsonModal';
+import { ImportJsonModal } from './ImportJsonModal';
+import { ResetConfirmationModal } from './ResetConfirmationModal';
+import { PersistenceRecoveryModal } from './PersistenceRecoveryModal';
 
 export const TreeWorkspace: React.FC = () => {
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const selectedNodeId = useTreeStore((state) => state.selectedNodeId);
 
-  const [jsonModalOpen, setJsonModalOpen] = useState(false);
-  const [jsonModalTab, setJsonModalTab] = useState<'export' | 'import'>('export');
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   // Automatically open mobile inspector when a node is selected (e.g. from search)
   useEffect(() => {
@@ -28,13 +31,15 @@ export const TreeWorkspace: React.FC = () => {
   }, [selectedNodeId]);
 
   useEffect(() => {
+    useTreeStore.getState().initializePersistence();
+  }, []);
+
+  useEffect(() => {
     const handleExportEvent = () => {
-      setJsonModalTab('export');
-      setJsonModalOpen(true);
+      setExportModalOpen(true);
     };
     const handleImportEvent = () => {
-      setJsonModalTab('import');
-      setJsonModalOpen(true);
+      setImportModalOpen(true);
     };
 
     window.addEventListener('tree:trigger-export-modal', handleExportEvent);
@@ -103,11 +108,18 @@ export const TreeWorkspace: React.FC = () => {
         )}
       </div>
 
-      <JsonImportExportModal
-        isOpen={jsonModalOpen}
-        onClose={() => setJsonModalOpen(false)}
-        defaultTab={jsonModalTab}
+      <ExportJsonModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
       />
+      <ImportJsonModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+      />
+
+      {/* Day 16 Modals */}
+      <ResetConfirmationModal />
+      <PersistenceRecoveryModal />
     </div>
   );
 };

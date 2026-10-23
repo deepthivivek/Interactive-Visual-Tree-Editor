@@ -64,6 +64,12 @@ import {
   type NodeContextMenuState,
   type PaneContextMenuState,
 } from '../lib/contextMenu';
+import {
+  loadPersistedWorkspace,
+  savePersistedWorkspace,
+  isStorageAvailable,
+  type PersistedSettings,
+} from '../lib/persistence';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -376,6 +382,9 @@ export const getCanonicalSampleEdges = (): TreeEdge[] =>
  */
 let dragBaselineNodes: TreeNode[] | null = null;
 let isLayoutRunning = false;
+let prevNodesRef: TreeNode[] = [];
+let prevEdgesRef: TreeEdge[] = [];
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 export type TreeTemporalState = TemporalState<{ nodes: TreeNode[]; edges: TreeEdge[] }> & {
   _handleSet?: (
@@ -410,6 +419,16 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
   selectedNodeIds: [],
   checkpoints: [],
   auditLog: [],
+
+  // Day 16 Persistence State
+  persistenceStatus: 'idle',
+  saveStatus: 'idle',
+  saveErrorMessage: null,
+  lastSavedAt: null,
+  corruptedPayload: null,
+  recoveryError: null,
+  isResetConfirmationOpen: false,
+  persistedSettings: {},
 
   // Actions
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
@@ -1289,9 +1308,18 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
    * Clears temporal history and establishes new baseline with 0 past and 0 future states.
    */
   loadSampleTree: () => {
+    const sampleNodes = getCanonicalSampleNodes();
+    const sampleEdges = getCanonicalSampleEdges();
+    prevNodesRef = sampleNodes;
+    prevEdgesRef = sampleEdges;
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+
     set({
-      nodes: getCanonicalSampleNodes(),
-      edges: getCanonicalSampleEdges(),
+      nodes: sampleNodes,
+      edges: sampleEdges,
       selectedNodeId: null,
       selectedEdgeId: null,
       deleteConfirmation: null,
@@ -1301,6 +1329,13 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       statusFeedback: 'Sample compliance template loaded.',
     });
     useTreeStore.temporal.getState().clear();
+
+    if (get().persistenceStatus === 'ready' && isStorageAvailable()) {
+      const saveRes = savePersistedWorkspace(sampleNodes, sampleEdges, get().persistedSettings);
+      if (saveRes.ok) {
+        set({ saveStatus: 'saved', lastSavedAt: saveRes.savedAt, saveErrorMessage: null });
+      }
+    }
   },
 
   resetToSampleData: () => {
@@ -1789,6 +1824,265 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       auditLog: appendAuditEntryPure(auditLog, entry),
     });
   },
+
+  // Day 16 Persistence Actions
+  initializePersistence: async () => {
+    if (!isStorageAvailable()) {
+      set({ persistenceStatus: 'unavailable', saveStatus: 'idle' });
+      return;
+    }
+
+    set({ persistenceStatus: 'restoring' });
+    const loadResult = loadPersistedWorkspace();
+
+    if (loadResult.ok) {
+      const doc = loadResult.document;
+      prevNodesRef = doc.nodes;
+      prevEdgesRef = doc.edges;
+      if (autosaveTimer) {
+        clearTimeout(autosaveTimer);
+        autosaveTimer = null;
+      }
+
+      set({
+        nodes: doc.nodes,
+        edges: doc.edges,
+        persistedSettings: doc.settings || {},
+        lastSavedAt: doc.savedAt,
+        persistenceStatus: 'ready',
+        saveStatus: 'saved',
+        saveErrorMessage: null,
+        corruptedPayload: null,
+        recoveryError: null,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        selectedNodeIds: [],
+        selectedSubtreeRootId: null,
+        searchQuery: '',
+        matchingNodeIds: new Set<string>(),
+        deleteConfirmation: null,
+        addChildChoiceOpen: false,
+        statusFeedback: 'Saved workspace restored.',
+      });
+      // Fresh history guarantee: previous session history is never restored; starts fresh on restore.
+      useTreeStore.temporal.getState().clear();
+    } else if (loadResult.errorType === 'NO_DATA') {
+      const currentNodes = get().nodes;
+      const currentEdges = get().edges;
+      const currentSettings = get().persistedSettings;
+      prevNodesRef = currentNodes;
+      prevEdgesRef = currentEdges;
+      if (autosaveTimer) {
+        clearTimeout(autosaveTimer);
+        autosaveTimer = null;
+      }
+
+      const saveRes = savePersistedWorkspace(currentNodes, currentEdges, currentSettings);
+      set({
+        persistenceStatus: 'ready',
+        saveStatus: saveRes.ok ? 'saved' : 'idle',
+        lastSavedAt: saveRes.ok ? saveRes.savedAt : null,
+        saveErrorMessage: saveRes.ok ? null : saveRes.message,
+        corruptedPayload: null,
+        recoveryError: null,
+      });
+      useTreeStore.temporal.getState().clear();
+    } else {
+      // Data corruption or schema mismatch: do NOT overwrite storage!
+      set({
+        persistenceStatus: 'recovery-required',
+        corruptedPayload: loadResult.rawPayload || null,
+        recoveryError: loadResult.message,
+        saveStatus: 'idle',
+      });
+      useTreeStore.temporal.getState().clear();
+    }
+  },
+
+  scheduleAutosave: () => {
+    const { persistenceStatus } = get();
+    if (persistenceStatus !== 'ready') return;
+
+    set({ saveStatus: 'unsaved' });
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+    }
+    autosaveTimer = setTimeout(() => {
+      get().saveNow();
+    }, 600);
+  },
+
+  saveNow: () => {
+    set({ saveStatus: 'saving', saveErrorMessage: null });
+    const { nodes, edges, persistedSettings } = get();
+    const result = savePersistedWorkspace(nodes, edges, persistedSettings);
+
+    if (result.ok) {
+      set({
+        saveStatus: 'saved',
+        lastSavedAt: result.savedAt,
+        saveErrorMessage: null,
+      });
+      return true;
+    } else {
+      set({
+        saveStatus: 'error',
+        saveErrorMessage: result.message,
+      });
+      return false;
+    }
+  },
+
+  openResetConfirmation: () => {
+    set({ isResetConfirmationOpen: true });
+  },
+
+  closeResetConfirmation: () => {
+    set({ isResetConfirmationOpen: false });
+  },
+
+  confirmResetSampleTree: () => {
+    const sampleNodes = getCanonicalSampleNodes();
+    const sampleEdges = getCanonicalSampleEdges();
+    const settings = get().persistedSettings;
+
+    prevNodesRef = sampleNodes;
+    prevEdgesRef = sampleEdges;
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+
+    set({
+      isResetConfirmationOpen: false,
+      nodes: sampleNodes,
+      edges: sampleEdges,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      selectedNodeIds: [],
+      selectedSubtreeRootId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      searchQuery: '',
+      matchingNodeIds: new Set<string>(),
+      statusFeedback: 'Reset to sample compliance template.',
+    });
+
+    useTreeStore.temporal.getState().clear();
+
+    if (isStorageAvailable()) {
+      const saveRes = savePersistedWorkspace(sampleNodes, sampleEdges, settings);
+      if (saveRes.ok) {
+        set({
+          persistenceStatus: 'ready',
+          saveStatus: 'saved',
+          lastSavedAt: saveRes.savedAt,
+          saveErrorMessage: null,
+        });
+        return true;
+      } else {
+        set({
+          saveStatus: 'error',
+          saveErrorMessage: saveRes.message,
+        });
+        return false;
+      }
+    }
+    return true;
+  },
+
+  recoverWithSampleTree: () => {
+    const sampleNodes = getCanonicalSampleNodes();
+    const sampleEdges = getCanonicalSampleEdges();
+    const settings = get().persistedSettings;
+
+    prevNodesRef = sampleNodes;
+    prevEdgesRef = sampleEdges;
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+
+    set({
+      nodes: sampleNodes,
+      edges: sampleEdges,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      selectedNodeIds: [],
+      selectedSubtreeRootId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      corruptedPayload: null,
+      recoveryError: null,
+      statusFeedback: 'Recovered workspace with sample compliance template.',
+    });
+
+    useTreeStore.temporal.getState().clear();
+
+    if (isStorageAvailable()) {
+      const saveRes = savePersistedWorkspace(sampleNodes, sampleEdges, settings);
+      if (saveRes.ok) {
+        set({
+          persistenceStatus: 'ready',
+          saveStatus: 'saved',
+          lastSavedAt: saveRes.savedAt,
+          saveErrorMessage: null,
+        });
+        return true;
+      }
+    }
+    set({ persistenceStatus: 'ready', saveStatus: 'idle' });
+    return true;
+  },
+
+  recoverWithEmptyTree: () => {
+    const emptyNodes: TreeNode[] = [];
+    const emptyEdges: TreeEdge[] = [];
+    prevNodesRef = emptyNodes;
+    prevEdgesRef = emptyEdges;
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+
+    set({
+      nodes: emptyNodes,
+      edges: emptyEdges,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      selectedNodeIds: [],
+      selectedSubtreeRootId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      corruptedPayload: null,
+      recoveryError: null,
+      statusFeedback: 'Started with empty workspace.',
+    });
+
+    useTreeStore.temporal.getState().clear();
+
+    if (isStorageAvailable()) {
+      const saveRes = savePersistedWorkspace(emptyNodes, emptyEdges, get().persistedSettings);
+      if (saveRes.ok) {
+        set({
+          persistenceStatus: 'ready',
+          saveStatus: 'saved',
+          lastSavedAt: saveRes.savedAt,
+          saveErrorMessage: null,
+        });
+        return true;
+      }
+    }
+    set({ persistenceStatus: 'ready', saveStatus: 'idle' });
+    return true;
+  },
+
+  dismissRecoveryModal: () => {
+    set({
+      recoveryError: null,
+      corruptedPayload: null,
+    });
+  },
     }),
     {
       limit: 100,
@@ -1797,4 +2091,21 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
     }
   )
 );
+
+// Subscribe to store mutations to trigger debounced autosave when nodes or edges change
+prevNodesRef = useTreeStore.getState().nodes;
+prevEdgesRef = useTreeStore.getState().edges;
+
+useTreeStore.subscribe((state) => {
+  if (state.persistenceStatus === 'ready') {
+    if (state.nodes !== prevNodesRef || state.edges !== prevEdgesRef) {
+      prevNodesRef = state.nodes;
+      prevEdgesRef = state.edges;
+      state.scheduleAutosave();
+    }
+  } else {
+    prevNodesRef = state.nodes;
+    prevEdgesRef = state.edges;
+  }
+});
 

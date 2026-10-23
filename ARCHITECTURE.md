@@ -445,3 +445,38 @@ The following pure-function business logic modules will reside under `src/lib/` 
   - Header badge provides ambient health status (`Healthy`, `X Warn`, `X Errors`).
   - Modal provides metric ribbons, severity filters (`All`, `Errors`, `Warnings`, `Info`), and one-click "Inspect" navigation that centers and pulses target nodes on the canvas.
 
+---
+
+## 12. Local Persistence, Recovery & Autosave (Day 16)
+
+### Storage Key & Format Versioning
+- **Storage Key**: `interactive_tree_editor_v1_store` in browser `localStorage`.
+- **Format Version**: `persistenceVersion: 1`. Strict integer version checking prevents unmigrated incompatible formats from breaking runtime state.
+- **Payload Ceiling**: 5 MiB UTF-8 byte limit (`MAX_PERSISTENCE_BYTES`) prevents runaway memory consumption or silent browser storage crashes.
+
+### State Isolation & Fresh History Guarantee
+- **Strict Boundary Separation**:
+  - **Persisted**: `nodes`, `edges`, and supported settings (`theme`, `gridVisible`).
+  - **Never Persisted**: Transient UI state (`selectedNodeId`, `selectedEdgeId`, `selectedNodeIds`, `selectedSubtreeRootId`, `deleteConfirmation`, `searchQuery`, `matchingNodeIds`, `clipboard`, `nodeContextMenu`, `paneContextMenu`, `focusPulseNodeId`, `statusFeedback`).
+  - **History Decoupling**: Undo/Redo temporal stacks (`pastStates`, `futureStates`) are strictly transient and never saved. Upon document restore or sample reset, `useTreeStore.temporal.getState().clear()` is invoked, guaranteeing a clean session baseline (0 past, 0 future states, `canUndo() === false`, `canRedo() === false`).
+
+### Debounced Autosave Architecture
+- **Subscriber Model**: Reactive subscription (`useTreeStore.subscribe`) monitors structural and position mutations (`state.nodes !== prevNodes || state.edges !== prevEdges`) when `persistenceStatus === 'ready'`.
+- **Zero Save on Transient Edits**: Selections, searches, context menu toggles, and inspector changes never alter `nodes` or `edges` and produce zero storage writes.
+- **Accurate Status Pipeline**:
+  - `idle`: Initial uninitialized state.
+  - `unsaved`: Change detected; debounced write scheduled (600ms).
+  - `saving`: Active atomic serialization and write operation in progress.
+  - `saved`: Document safely committed to storage; timestamp recorded in `lastSavedAt`.
+  - `error`: Storage write failure or QuotaExceededError; user notified via UI badge with retry capability.
+
+### Non-Destructive Recovery & Reset Workflows
+- **Corruption Distinction**: Legitimate incomplete editing trees (e.g., rule awaiting conditions) are valid and restored safely. Syntax errors, duplicate IDs, dangling edge endpoints, and prototype pollution properties are classified as corruption.
+- **Zero Data Loss Guarantee**: When corrupt data is encountered, storage is **never** silently overwritten. Store transitions to `persistenceStatus: 'recovery-required'`, and the `PersistenceRecoveryModal` offers:
+  1. Restore canonical Sample Tree
+  2. Start fresh with Empty Root Tree
+  3. Safe browser download of raw unparsed JSON payload for offline recovery
+  4. Dismiss and inspect in-memory workspace
+- **Confirmed Sample Reset**: Replacing the active tree with the canonical template requires explicit modal confirmation (`ResetConfirmationModal`) to prevent accidental destruction of user progress.
+
+
