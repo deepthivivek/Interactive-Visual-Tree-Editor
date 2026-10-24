@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { ShieldAlert, AlertCircle, CheckCircle2, ArrowRight, Wrench, X } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { validateGraph, type ValidationIssue } from '../../lib/validation';
@@ -19,6 +19,35 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
   const nodes = useTreeStore((state) => state.nodes);
   const edges = useTreeStore((state) => state.edges);
   const setSelectedNodeId = useTreeStore((state) => state.setSelectedNodeId);
+
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 10);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+        previousActiveElementRef.current.focus();
+      }
+    };
+  }, [isOpen, onClose]);
 
   const validationResult = useMemo(() => {
     return validateGraph(nodes, edges);
@@ -43,7 +72,7 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
     <div
       role="region"
       aria-label="Graph Validation and Quality Panel"
-      className="absolute top-16 right-4 z-40 w-96 max-h-[80vh] bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 select-none"
+      className="nokey absolute top-16 right-4 z-40 w-96 max-h-[80vh] bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 motion-reduce:transition-none select-none"
     >
       {/* Header */}
       <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
@@ -63,9 +92,10 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
           </div>
         </div>
         <button
+          ref={closeBtnRef}
           type="button"
           onClick={onClose}
-          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition cursor-pointer"
+          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 outline-hidden"
           aria-label="Close validation panel"
         >
           <X className="w-4 h-4" />

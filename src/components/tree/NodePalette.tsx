@@ -14,6 +14,7 @@ import {
   type NodeIconId,
 } from '../../lib/nodeTypeConfig';
 import type { NodeType } from '../../types/tree';
+import { useTreeStore } from '../../store/treeStore';
 
 /**
  * UI mapping from serializable icon identifiers to Lucide React icon components.
@@ -38,13 +39,26 @@ interface NodePaletteProps {
 }
 
 /**
- * Node Palette component for creating new nodes via HTML5 drag-and-drop (Day 4).
+ * Node Palette component for creating new nodes via HTML5 drag-and-drop or keyboard activation (Day 4/18).
  * Reuses shared `nodeTypeConfig` for labels, descriptions, badges, and colors.
  */
 export const NodePalette: React.FC<NodePaletteProps> = ({
   onDragStartNotification,
   onDragEndNotification,
 }) => {
+  const createNode = useTreeStore((state) => state.createNode);
+  const setStatusFeedback = useTreeStore((state) => state.setStatusFeedback);
+
+  const handleActivate = (type: NodeType, displayLabel: string) => {
+    // Position newly created node in visible canvas area with slight staggering
+    const existingCount = useTreeStore.getState().nodes.length;
+    const staggeredPos = { x: 320 + (existingCount % 5) * 30, y: 180 + (existingCount % 5) * 30 };
+    const node = createNode(type, staggeredPos);
+    if (node) {
+      setStatusFeedback(`Added new ${displayLabel} to canvas.`);
+    }
+  };
+
   const handleDragStart = (
     event: React.DragEvent<HTMLDivElement>,
     type: NodeType,
@@ -68,6 +82,17 @@ export const NodePalette: React.FC<NodePaletteProps> = ({
     }
   };
 
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLDivElement>,
+    type: NodeType,
+    displayLabel: string
+  ) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleActivate(type, displayLabel);
+    }
+  };
+
   return (
     <div className="space-y-2 select-none" role="region" aria-label="Node Creation Palette">
       {PALETTE_TYPES.map((type) => {
@@ -80,11 +105,13 @@ export const NodePalette: React.FC<NodePaletteProps> = ({
             draggable
             onDragStart={(e) => handleDragStart(e, type, config.displayLabel)}
             onDragEnd={handleDragEnd}
+            onClick={() => handleActivate(type, config.displayLabel)}
+            onKeyDown={(e) => handleKeyDown(e, type, config.displayLabel)}
             role="button"
             tabIndex={0}
-            aria-label={`Draggable ${config.displayLabel}: ${config.description}`}
-            title={`Drag ${config.displayLabel} onto canvas`}
-            className={`group relative bg-white border rounded-lg p-2.5 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-grab active:cursor-grabbing outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 ${config.styling.cardBorder} ${config.styling.cardBorderHover}`}
+            aria-label={`Add or drag ${config.displayLabel}: ${config.description}. Press Enter or Space to add.`}
+            title={`Click or press Enter to add, or drag ${config.displayLabel} onto canvas`}
+            className={`group relative bg-white border rounded-lg p-2.5 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-grab active:cursor-grabbing outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 motion-reduce:transition-none ${config.styling.cardBorder} ${config.styling.cardBorderHover}`}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">

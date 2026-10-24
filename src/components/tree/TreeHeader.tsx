@@ -207,7 +207,7 @@ export const TreeHeader: React.FC = () => {
                 ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500'
                 : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed opacity-60'
             }`}
-            title="Auto Layout (arranges tree in hierarchical top-to-bottom layout) [Ctrl+L]"
+            title="Auto Layout (arranges tree in hierarchical top-to-bottom layout) [Ctrl+Shift+L / ⌘Shift+L]"
             aria-label="Auto Layout"
           >
             <Workflow className="w-3.5 h-3.5 text-blue-600" />

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Download, Copy, Check, AlertTriangle, Shield, X } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { exportGraph } from '../../lib/json';
 import { evaluateExportGuard } from '../../lib/exportGuard';
+import { handleModalTabKey } from '../../lib/modalFocus';
 
 interface ExportJsonModalProps {
   isOpen: boolean;
@@ -17,18 +18,39 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
   const setStatusFeedback = useTreeStore((state) => state.setStatusFeedback);
 
   const [copiedExport, setCopiedExport] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
-  // Close on Escape key
+  // Focus trap, initial focus, focus restoration, and Escape listener
   useEffect(() => {
     if (!isOpen) return;
+
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    const timer = setTimeout(() => {
+      // Focus modal container or first button
+      const firstBtn = modalRef.current?.querySelector<HTMLElement>('button:not([disabled])');
+      firstBtn?.focus();
+    }, 10);
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        handleModalTabKey(e, modalRef.current);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+        previousActiveElementRef.current.focus();
+      }
+    };
   }, [isOpen, onClose]);
 
   // Memoized export JSON string
@@ -84,6 +106,7 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
       onClick={onClose}
     >
       <div
+        ref={modalRef}
         className="nokey bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden font-sans"
         onClick={(e) => e.stopPropagation()}
       >

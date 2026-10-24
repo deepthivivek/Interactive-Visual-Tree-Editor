@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { X, Keyboard, Navigation, History, Search, ShieldCheck } from 'lucide-react';
+import { handleModalTabKey } from '../../lib/modalFocus';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -19,85 +20,115 @@ interface ShortcutCategory {
   shortcuts: ShortcutItem[];
 }
 
-const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
-  {
-    title: 'Canvas Navigation',
-    icon: Navigation,
-    shortcuts: [
-      { keys: ['Drag'], description: 'Pan canvas workspace' },
-      { keys: ['Scroll'], description: 'Zoom in / out' },
-      { keys: ['Ctrl', '0'], description: 'Fit view to entire graph' },
-      { keys: ['Ctrl', '1'], description: 'Reset zoom to 100%' },
-      { keys: ['Ctrl', 'M'], description: 'Toggle MiniMap visibility' },
-      { keys: ['Ctrl', 'G'], description: 'Toggle background grid' },
-      { keys: ['Arrow Keys'], description: 'Nudge selected node by 20px' },
-    ],
-  },
-  {
-    title: 'Editing & History',
-    icon: History,
-    shortcuts: [
-      { keys: ['Ctrl', 'Z'], description: 'Undo last graph change' },
-      { keys: ['Ctrl', 'Shift', 'Z'], description: 'Redo previously undone change' },
-      { keys: ['Ctrl', 'Shift', 'L'], description: 'Auto-arrange tree (Dagre layout)' },
-      { keys: ['Ctrl', 'C'], description: 'Copy selected node & subtree' },
-      { keys: ['Ctrl', 'V'], description: 'Paste subtree (as child or on canvas)' },
-      { keys: ['Ctrl', 'D'], description: 'Duplicate selected node & subtree' },
-      { keys: ['Ctrl', 'E'], description: 'Toggle subtree collapse / expand' },
-      { keys: ['Del / Backspace'], description: 'Delete selected node (preserves children)' },
-      { keys: ['Shift', 'Delete'], description: 'Delete entire subtree (cascade)' },
-    ],
-  },
-  {
-    title: 'Selection & Search',
-    icon: Search,
-    shortcuts: [
-      { keys: ['Ctrl', 'A'], description: 'Select all nodes on canvas' },
-      { keys: ['/'], description: 'Quick focus search box' },
-      { keys: ['Ctrl', 'K'], description: 'Open search query' },
-      { keys: ['Tab'], description: 'Cycle forward to next node' },
-      { keys: ['Shift', 'Tab'], description: 'Cycle backward to previous node' },
-      { keys: ['Esc'], description: 'Clear selection / Close active modal' },
-    ],
-  },
-  {
-    title: 'Diagnostics & Assistance',
-    icon: ShieldCheck,
-    shortcuts: [
-      { keys: ['Ctrl', 'Shift', 'D'], description: 'Open Graph Diagnostics panel' },
-      { keys: ['?'], description: 'Open this keyboard shortcuts reference' },
-    ],
-  },
-];
-
 export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   isOpen,
   onClose,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const [isMac] = useState(() => {
+    if (typeof navigator === 'undefined') return false;
+    const platform = (navigator as unknown as { userAgentData?: { platform?: string } })
+      .userAgentData?.platform || navigator.platform || navigator.userAgent || '';
+    return /Mac|iPhone|iPad|iPod/i.test(platform);
+  });
+
+  const modKey = isMac ? '⌘' : 'Ctrl';
+
+  const shortcutCategories: ShortcutCategory[] = useMemo(() => [
+    {
+      title: 'Canvas Navigation',
+      icon: Navigation,
+      shortcuts: [
+        { keys: ['Drag'], description: 'Pan canvas workspace' },
+        { keys: ['Scroll'], description: 'Zoom in / out' },
+        { keys: [modKey, '0'], description: 'Fit view to entire graph' },
+        { keys: [modKey, '1'], description: 'Reset zoom to 100%' },
+        { keys: [modKey, 'M'], description: 'Toggle MiniMap visibility' },
+        { keys: [modKey, 'G'], description: 'Toggle background grid' },
+        { keys: ['Arrow Keys'], description: 'Nudge selected node by 20px' },
+      ],
+    },
+    {
+      title: 'Editing & History',
+      icon: History,
+      shortcuts: [
+        { keys: [modKey, 'Z'], description: 'Undo last graph change' },
+        { keys: [modKey, isMac ? 'Shift' : 'Shift', 'Z'], description: 'Redo previously undone change' },
+        { keys: [modKey, 'Shift', 'L'], description: 'Auto-arrange tree (Dagre layout)' },
+        { keys: [modKey, 'C'], description: 'Copy selected node & subtree' },
+        { keys: [modKey, 'V'], description: 'Paste subtree (as child or on canvas)' },
+        { keys: [modKey, 'D'], description: 'Duplicate selected node & subtree' },
+        { keys: [modKey, 'E'], description: 'Toggle subtree collapse / expand' },
+        { keys: ['Del / Backspace'], description: 'Delete selected node (preserves children)' },
+        { keys: ['Shift', 'Delete'], description: 'Delete entire subtree (cascade)' },
+      ],
+    },
+    {
+      title: 'Selection & Search',
+      icon: Search,
+      shortcuts: [
+        { keys: [modKey, 'A'], description: 'Select all nodes on canvas' },
+        { keys: ['/'], description: 'Quick focus search box' },
+        { keys: [modKey, 'K'], description: 'Open search query' },
+        { keys: ['Tab'], description: 'Cycle forward to next node' },
+        { keys: ['Shift', 'Tab'], description: 'Cycle backward to previous node' },
+        { keys: ['Esc'], description: 'Clear selection / Close active modal' },
+      ],
+    },
+    {
+      title: 'Diagnostics & Assistance',
+      icon: ShieldCheck,
+      shortcuts: [
+        { keys: [modKey, 'Shift', 'D'], description: 'Open Graph Diagnostics panel' },
+        { keys: ['?'], description: 'Open this keyboard shortcuts reference' },
+      ],
+    },
+  ], [modKey, isMac]);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    // Capture the trigger element before opening
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    // Set initial focus to the close button
+    const timer = setTimeout(() => {
+      closeButtonRef.current?.focus();
+    }, 10);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        handleModalTabKey(e, modalRef.current);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
+      // Restore focus to opener element
+      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+        previousActiveElementRef.current.focus();
+      }
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs select-none animate-in fade-in duration-150"
+      className="nokey fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs select-none animate-in fade-in duration-150 motion-reduce:transition-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="shortcuts-modal-title"
+      aria-describedby="shortcuts-modal-desc"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -119,15 +150,16 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
               >
                 Keyboard Shortcuts
               </h2>
-              <p className="text-xs text-slate-500">
+              <p id="shortcuts-modal-desc" className="text-xs text-slate-500">
                 Quick commands to navigate and edit the compliance tree
               </p>
             </div>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 outline-hidden"
             aria-label="Close shortcuts dialog"
           >
             <X className="w-4 h-4" />
@@ -137,7 +169,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {SHORTCUT_CATEGORIES.map((category) => {
+            {shortcutCategories.map((category) => {
               const Icon = category.icon;
               return (
                 <div

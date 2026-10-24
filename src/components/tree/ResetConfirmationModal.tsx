@@ -3,28 +3,45 @@
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangle, RotateCcw, X } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
+import { handleModalTabKey } from '../../lib/modalFocus';
 
 export const ResetConfirmationModal: React.FC = () => {
   const isOpen = useTreeStore((state) => state.isResetConfirmationOpen);
   const closeResetConfirmation = useTreeStore((state) => state.closeResetConfirmation);
   const confirmResetSampleTree = useTreeStore((state) => state.confirmResetSampleTree);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    // Focus confirm or cancel button when opened
-    confirmButtonRef.current?.focus();
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    // Focus cancel button or confirm button when opened
+    const timer = setTimeout(() => {
+      confirmButtonRef.current?.focus();
+    }, 10);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         closeResetConfirmation();
+        return;
+      }
+      if (e.key === 'Tab') {
+        handleModalTabKey(e, modalRef.current);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+        previousActiveElementRef.current.focus();
+      }
+    };
   }, [isOpen, closeResetConfirmation]);
 
   if (!isOpen) return null;
@@ -35,9 +52,12 @@ export const ResetConfirmationModal: React.FC = () => {
       aria-modal="true"
       aria-labelledby="reset-modal-title"
       aria-describedby="reset-modal-description"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150"
+      className="nokey fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150 motion-reduce:transition-none"
     >
-      <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl border border-slate-200">
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl border border-slate-200"
+      >
         <button
           type="button"
           onClick={closeResetConfirmation}

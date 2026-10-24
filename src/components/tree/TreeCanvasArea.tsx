@@ -106,9 +106,11 @@ export const TreeCanvasArea: React.FC = () => {
 
           {/* Validation Score Button Trigger */}
           <button
+            id="validation-status-button"
             type="button"
             onClick={handleOpenValidation}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer border focus-visible:ring-2 focus-visible:ring-blue-500 outline-hidden ${
+            aria-label={`Validation Status: ${stats.isValid ? 'Valid' : `${stats.errorCount} Errors`}. Score: ${stats.score}/100. Click to inspect issues.`}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer border focus-visible:ring-2 focus-visible:ring-blue-500 outline-hidden motion-reduce:transition-none ${
               stats.isValid
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                 : stats.errorCount > 0

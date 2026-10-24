@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { AlertOctagon, Download, RefreshCw, PlusCircle, X } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
+import { handleModalTabKey } from '../../lib/modalFocus';
 
 export const PersistenceRecoveryModal: React.FC = () => {
   const persistenceStatus = useTreeStore((state) => state.persistenceStatus);
@@ -14,20 +15,37 @@ export const PersistenceRecoveryModal: React.FC = () => {
 
   const isOpen = persistenceStatus === 'recovery-required' && recoveryError !== null;
   const initialFocusRef = useRef<HTMLButtonElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    initialFocusRef.current?.focus();
+
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    const timer = setTimeout(() => {
+      initialFocusRef.current?.focus();
+    }, 10);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         dismissRecoveryModal();
+        return;
+      }
+      if (e.key === 'Tab') {
+        handleModalTabKey(e, modalRef.current);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+        previousActiveElementRef.current.focus();
+      }
+    };
   }, [isOpen, dismissRecoveryModal]);
 
   if (!isOpen) return null;
@@ -51,9 +69,12 @@ export const PersistenceRecoveryModal: React.FC = () => {
       aria-modal="true"
       aria-labelledby="recovery-modal-title"
       aria-describedby="recovery-modal-description"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
+      className="nokey fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 motion-reduce:transition-none"
     >
-      <div className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl border border-slate-200">
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl border border-slate-200"
+      >
         <button
           type="button"
           onClick={dismissRecoveryModal}
