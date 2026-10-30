@@ -13,12 +13,15 @@ import {
   Keyboard,
   Upload,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import { useTreeStore, SAMPLE_COMPLIANCE_TEMPLATE_LABEL } from '../../store/treeStore';
 import { SearchBox } from './SearchBox';
 import { runGraphDiagnostics } from '../../lib/graphDiagnostics';
+import { CollaborationBar } from './CollaborationBar';
 
 export const TreeHeader: React.FC = () => {
+
   const { undo, redo } = useTreeStore();
   const nodes = useTreeStore((state) => state.nodes);
   const edges = useTreeStore((state) => state.edges);
@@ -65,7 +68,13 @@ export const TreeHeader: React.FC = () => {
         </div>
       </div>
 
+      {/* Real-Time Collaboration Indicator */}
+      <div className="hidden xl:flex shrink-0">
+        <CollaborationBar />
+      </div>
+
       {/* Right Zone: Cleanly Grouped Functional Action Controls */}
+
       <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
         {/* Group 1: Undo / Redo History */}
         <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-200/80">
@@ -174,6 +183,17 @@ export const TreeHeader: React.FC = () => {
 
         {/* Group 4: Interchange & Actions */}
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('tree:trigger-ai-modal'))}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50/80 border border-purple-200 rounded-md hover:bg-purple-100/80 transition shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500"
+            title="Generate compliance rule trees using Gemini AI"
+            aria-label="AI Generate Rules"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            <span className="hidden sm:inline">AI Generate</span>
+          </button>
+
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('tree:trigger-import-modal'))}

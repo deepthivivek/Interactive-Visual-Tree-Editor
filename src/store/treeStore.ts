@@ -69,7 +69,12 @@ import {
   savePersistedWorkspace,
   isStorageAvailable,
   type PersistedSettings,
+  DEFAULT_PERSISTED_SETTINGS,
 } from '../lib/persistence';
+import { getTemplateById } from '../lib/templates';
+import { applyThemeToDocument } from '../lib/theme';
+import type { UserRole, ApprovalState, PolicyApprovalWorkflow } from '../lib/rolesAndApprovals';
+import type { SsoUserProfile } from '../lib/sso';
 
 /**
  * MOCK SAMPLE COMPLIANCE TEMPLATE
@@ -243,7 +248,7 @@ export const INITIAL_SAMPLE_NODES: TreeNode[] = [
       ruleId: 'RULE-DISC-09',
       description: 'Mock promotional disclosure and risk disclaimer attachment standard.',
       severity: 'medium',
-      status: 'in_review',
+      status: 'active',
       parameters: {
         mandateDisclaimer: true,
         placement: 'Footer',
@@ -428,7 +433,20 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
   corruptedPayload: null,
   recoveryError: null,
   isResetConfirmationOpen: false,
-  persistedSettings: {},
+  isTemplatesModalOpen: false,
+  isSettingsModalOpen: false,
+  isComparisonModalOpen: false,
+  isApprovalsModalOpen: false,
+  isSsoModalOpen: false,
+  activeRole: 'Admin' as UserRole,
+  approvalWorkflow: {
+    currentState: 'draft' as ApprovalState,
+    version: 1,
+    lastUpdated: Date.now(),
+    history: [],
+  },
+  ssoUser: null as SsoUserProfile | null,
+  persistedSettings: { ...DEFAULT_PERSISTED_SETTINGS },
 
   // Actions
   setNodes: (nodes: TreeNode[]) => set({ nodes }),
@@ -1844,10 +1862,13 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
         autosaveTimer = null;
       }
 
+      const resolvedSettings = doc.settings ? { ...DEFAULT_PERSISTED_SETTINGS, ...doc.settings } : { ...DEFAULT_PERSISTED_SETTINGS };
+      applyThemeToDocument(resolvedSettings.theme);
+
       set({
         nodes: doc.nodes,
         edges: doc.edges,
-        persistedSettings: doc.settings || {},
+        persistedSettings: resolvedSettings,
         lastSavedAt: doc.savedAt,
         persistenceStatus: 'ready',
         saveStatus: 'saved',
@@ -1870,6 +1891,7 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       const currentNodes = get().nodes;
       const currentEdges = get().edges;
       const currentSettings = get().persistedSettings;
+      applyThemeToDocument(currentSettings.theme);
       prevNodesRef = currentNodes;
       prevEdgesRef = currentEdges;
       if (autosaveTimer) {
@@ -2083,7 +2105,143 @@ export const useTreeStore: TreeStore = create<TreeStoreState>()(
       corruptedPayload: null,
     });
   },
+
+  // Day 21 Templates & Settings Actions
+  openTemplatesModal: () => set({ isTemplatesModalOpen: true }),
+  closeTemplatesModal: () => set({ isTemplatesModalOpen: false }),
+  openSettingsModal: () => set({ isSettingsModalOpen: true }),
+  closeSettingsModal: () => set({ isSettingsModalOpen: false }),
+
+  updateSettings: (newSettings: Partial<PersistedSettings>) => {
+    const current = get().persistedSettings;
+    const merged: PersistedSettings = { ...current, ...newSettings };
+    set({ persistedSettings: merged });
+
+    if (newSettings.theme !== undefined) {
+      applyThemeToDocument(newSettings.theme);
+    }
+
+    if (isStorageAvailable()) {
+      const { nodes, edges } = get();
+      savePersistedWorkspace(nodes, edges, merged);
+    }
+  },
+
+  resetSettingsToDefault: () => {
+    const defaults = { ...DEFAULT_PERSISTED_SETTINGS };
+    set({ persistedSettings: defaults });
+    applyThemeToDocument(defaults.theme);
+    if (isStorageAvailable()) {
+      const { nodes, edges } = get();
+      savePersistedWorkspace(nodes, edges, defaults);
+    }
+    set({ statusFeedback: 'Settings reset to defaults.' });
+  },
+
+  applyTemplate: (templateId: string) => {
+    const tmpl = getTemplateById(templateId);
+    if (!tmpl) {
+      const msg = `Template "${templateId}" not found.`;
+      set({ statusFeedback: msg });
+      return { ok: false, message: msg };
+    }
+
+    const clonedNodes: TreeNode[] = JSON.parse(JSON.stringify(tmpl.nodes));
+    const clonedEdges: TreeEdge[] = JSON.parse(JSON.stringify(tmpl.edges));
+
+    prevNodesRef = clonedNodes;
+    prevEdgesRef = clonedEdges;
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+
+    set({
+      nodes: clonedNodes,
+      edges: clonedEdges,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      selectedNodeIds: [],
+      selectedSubtreeRootId: null,
+      deleteConfirmation: null,
+      addChildChoiceOpen: false,
+      isTemplatesModalOpen: false,
+      searchQuery: '',
+      matchingNodeIds: new Set<string>(),
+      statusFeedback: `Loaded template: ${tmpl.title}`,
+    });
+
+    useTreeStore.temporal.getState().clear();
+
+    if (isStorageAvailable()) {
+      const saveRes = savePersistedWorkspace(clonedNodes, clonedEdges, get().persistedSettings);
+      if (saveRes.ok) {
+        set({
+          persistenceStatus: 'ready',
+          saveStatus: 'saved',
+          lastSavedAt: saveRes.savedAt,
+          saveErrorMessage: null,
+        });
+      }
+    }
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('tree:trigger-fitview'));
+      }, 50);
+    }
+
+    return {
+      ok: true,
+      message: `Loaded template: ${tmpl.title}`,
+      templateTitle: tmpl.title,
+    };
+  },
+
+  // Day 22 Policy Comparison Actions
+  openComparisonModal: () => set({ isComparisonModalOpen: true }),
+  closeComparisonModal: () => set({ isComparisonModalOpen: false }),
+
+  // Day 26 Governance, Roles & Approvals Actions
+  openApprovalsModal: () => set({ isApprovalsModalOpen: true }),
+  closeApprovalsModal: () => set({ isApprovalsModalOpen: false }),
+  setActiveRole: (role: UserRole) => set({ activeRole: role }),
+  setApprovalState: (
+    state: ApprovalState,
+    actorRole: UserRole,
+    comments: string,
+    actorId = 'usr_01',
+    actorName = 'Compliance User'
+  ) => {
+    const current = get().approvalWorkflow;
+    const newRecord = {
+      id: `appr_${Math.random().toString(36).substring(2, 8)}`,
+      state,
+      actorId,
+      actorName,
+      actorRole,
+      timestamp: Date.now(),
+      comments,
+      graphVersionId: `v_${current.version}`,
+      nodeCount: get().nodes.length,
+    };
+    set({
+      approvalWorkflow: {
+        currentState: state,
+        version: current.version + 1,
+        lastUpdated: Date.now(),
+        history: [...current.history, newRecord],
+      },
+      statusFeedback: `Policy lifecycle status updated to ${state.toUpperCase()}`,
+    });
+  },
+
+  // Day 30 Enterprise SSO Actions
+  openSsoModal: () => set({ isSsoModalOpen: true }),
+  closeSsoModal: () => set({ isSsoModalOpen: false }),
+  setSsoUser: (user: SsoUserProfile | null) => set({ ssoUser: user }),
     }),
+
     {
       limit: 100,
       partialize: (state) => ({ nodes: state.nodes, edges: state.edges }),

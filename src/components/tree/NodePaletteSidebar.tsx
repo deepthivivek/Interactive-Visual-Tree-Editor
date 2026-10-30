@@ -8,8 +8,15 @@ import {
   Info,
 } from 'lucide-react';
 import { NodePalette } from './NodePalette';
+import { useTreeStore } from '../../store/treeStore';
 
 export const NodePaletteSidebar: React.FC = () => {
+  const openTemplatesModal = useTreeStore((state) => state.openTemplatesModal);
+  const openSettingsModal = useTreeStore((state) => state.openSettingsModal);
+  const openComparisonModal = useTreeStore((state) => state.openComparisonModal);
+  const openApprovalsModal = useTreeStore((state) => state.openApprovalsModal);
+  const openSsoModal = useTreeStore((state) => state.openSsoModal);
+
   return (
     <aside className="nokey w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 select-none overflow-y-auto">
       {/* 1. PRIMARY APPLICATION NAVIGATION */}
@@ -20,7 +27,8 @@ export const NodePaletteSidebar: React.FC = () => {
 
         {/* Tree Editor (Currently Active) */}
         <button
-          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-blue-700 bg-blue-50/80 border border-blue-100 shadow-2xs transition"
+          type="button"
+          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-blue-700 bg-blue-50/80 border border-blue-100 shadow-2xs transition cursor-default"
           title="Tree Editor (Active Workspace)"
         >
           <Home className="w-4 h-4 text-blue-600" />
@@ -28,32 +36,65 @@ export const NodePaletteSidebar: React.FC = () => {
           <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
         </button>
 
-        {/* Templates (Future Placeholder) */}
+        {/* Templates */}
         <button
-          disabled
-          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-500 cursor-not-allowed opacity-70 transition"
-          title="Templates library scheduled for later milestone"
+          type="button"
+          onClick={openTemplatesModal}
+          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition cursor-pointer"
+          title="Browse and apply compliance rule templates"
         >
-          <FileSpreadsheet className="w-4 h-4 text-slate-400" />
+          <FileSpreadsheet className="w-4 h-4 text-blue-600" />
           <span>Templates</span>
-          <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 px-1 py-0.2 rounded font-mono">
-            Soon
+          <span className="ml-auto text-[10px] text-blue-600 bg-blue-50 border border-blue-100 px-1 py-0.2 rounded font-mono font-medium">
+            Ready
           </span>
         </button>
 
-        {/* Settings (Future Placeholder) */}
+        {/* Policy Comparison & Diff */}
         <button
-          disabled
-          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-500 cursor-not-allowed opacity-70 transition"
-          title="Editor Settings scheduled for later milestone"
+          type="button"
+          onClick={openComparisonModal}
+          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition cursor-pointer"
+          title="Compare active graph against baseline templates or checkpoints"
         >
-          <Settings className="w-4 h-4 text-slate-400" />
+          <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
+          <span>Policy Comparison</span>
+        </button>
+
+        {/* Governance & Approvals */}
+        <button
+          type="button"
+          onClick={openApprovalsModal}
+          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition cursor-pointer"
+          title="RBAC authorization and policy approval workflow"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+          <span>Governance & Approvals</span>
+        </button>
+
+        {/* Enterprise SSO */}
+        <button
+          type="button"
+          onClick={openSsoModal}
+          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition cursor-pointer"
+          title="Enterprise OIDC / SAML 2.0 Single Sign-On"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-amber-600" />
+          <span>Enterprise SSO</span>
+        </button>
+
+        {/* Settings */}
+        <button
+          type="button"
+          onClick={openSettingsModal}
+          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition cursor-pointer"
+          title="Configure editor display, snap-to-grid, and persistence"
+        >
+          <Settings className="w-4 h-4 text-slate-600" />
           <span>Settings</span>
-          <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 px-1 py-0.2 rounded font-mono">
-            Soon
-          </span>
         </button>
       </div>
+
 
       {/* 2. NODE PALETTE (Active Drag-and-Drop Creation) */}
       <div className="p-3 space-y-2 flex-1">

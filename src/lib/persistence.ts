@@ -34,7 +34,16 @@ export const VALID_NODE_TYPES: readonly NodeType[] = ['root', 'rule', 'condition
 export interface PersistedSettings {
   theme?: string;
   gridVisible?: boolean;
+  miniMapVisible?: boolean;
+  snapToGrid?: boolean;
 }
+
+export const DEFAULT_PERSISTED_SETTINGS: PersistedSettings = {
+  theme: 'light',
+  gridVisible: true,
+  miniMapVisible: true,
+  snapToGrid: false,
+};
 
 export interface SavedWorkspaceDocument {
   persistenceVersion: 1;
@@ -328,6 +337,8 @@ export function validateWorkspaceDocument(
     validatedSettings = {};
     if (typeof s.theme === 'string') validatedSettings.theme = s.theme;
     if (typeof s.gridVisible === 'boolean') validatedSettings.gridVisible = s.gridVisible;
+    if (typeof s.miniMapVisible === 'boolean') validatedSettings.miniMapVisible = s.miniMapVisible;
+    if (typeof s.snapToGrid === 'boolean') validatedSettings.snapToGrid = s.snapToGrid;
   }
 
   const savedAt = typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt) ? raw.savedAt : Date.now();

@@ -1,1 +1,181 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =========================================================================
+   COMPREHENSIVE DARK MODE SYSTEM (Interactive Visual Tree Editor)
+   Transforms canvas, headers, sidebars, modals, inspector, and nodes
+   ========================================================================= */
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0b0f19;
+  color: #f1f5f9;
+}
+
+/* Base workspace backgrounds */
+html.dark .bg-white {
+  background-color: #111827;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/40,
+html.dark .bg-slate-50\/50,
+html.dark .bg-slate-50\/70,
+html.dark .bg-slate-50\/80 {
+  background-color: #0b0f19;
+}
+
+html.dark .bg-slate-100,
+html.dark .bg-slate-100\/80 {
+  background-color: #1e293b;
+}
+
+html.dark .bg-slate-200 {
+  background-color: #334155;
+}
+
+/* Borders */
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-200\/60,
+html.dark .border-slate-200\/70,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-200\/90,
+html.dark .border-slate-300 {
+  border-color: #1e293b;
+}
+
+/* Typography */
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f8fafc;
+}
+
+html.dark .text-slate-700 {
+  color: #e2e8f0;
+}
+
+html.dark .text-slate-600 {
+  color: #cbd5e1;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8;
+}
+
+html.dark .text-slate-400 {
+  color: #64748b;
+}
+
+/* Hover states */
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-100\/80:hover {
+  background-color: #1e293b;
+}
+
+html.dark .hover\:bg-slate-200\/60:hover {
+  background-color: #334155;
+}
+
+html.dark .hover\:border-slate-300:hover,
+html.dark .hover\:border-slate-200:hover {
+  border-color: #334155;
+}
+
+html.dark .hover\:text-slate-900:hover,
+html.dark .hover\:text-slate-800:hover,
+html.dark .hover\:text-slate-700:hover {
+  color: #ffffff;
+}
+
+/* Form Inputs, Textareas, and Selects */
+html.dark input[type="text"],
+html.dark input[type="search"],
+html.dark select,
+html.dark textarea {
+  background-color: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b;
+}
+
+/* React Flow Canvas and Panes */
+html.dark .react-flow {
+  background-color: #0b0f19;
+}
+
+html.dark .react-flow__pane {
+  background-color: #0b0f19;
+}
+
+html.dark .react-flow__minimap {
+  background-color: #111827 !important;
+  border-color: #1e293b !important;
+}
+
+/* Floating controls, badges, and modals */
+html.dark .bg-white\/95,
+html.dark .bg-white\/80 {
+  background-color: rgba(17, 24, 39, 0.95);
+}
+
+html.dark .bg-blue-50\/80,
+html.dark .bg-blue-50\/60,
+html.dark .bg-blue-50\/20,
+html.dark .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.35);
+}
+
+html.dark .border-blue-100,
+html.dark .border-blue-200,
+html.dark .border-blue-200\/60 {
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+html.dark .text-blue-700,
+html.dark .text-blue-800 {
+  color: #93c5fd;
+}
+
+/* Node header tints in dark mode */
+html.dark .bg-indigo-50\/60,
+html.dark .bg-indigo-50 {
+  background-color: rgba(49, 46, 129, 0.35);
+}
+
+html.dark .bg-amber-50\/60,
+html.dark .bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.35);
+}
+
+html.dark .bg-emerald-50\/60,
+html.dark .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.35);
+}
+
+html.dark .text-indigo-700 {
+  color: #a5b4fc;
+}
+
+html.dark .text-amber-700 {
+  color: #fcd34d;
+}
+
+html.dark .text-emerald-700 {
+  color: #6ee7b7;
+}
+
+html.dark code {
+  background-color: #1e293b;
+  color: #93c5fd;
+  border-color: #334155;
+}

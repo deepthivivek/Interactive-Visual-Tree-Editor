@@ -11,8 +11,16 @@ import { ExportJsonModal } from './ExportJsonModal';
 import { ImportJsonModal } from './ImportJsonModal';
 import { ResetConfirmationModal } from './ResetConfirmationModal';
 import { PersistenceRecoveryModal } from './PersistenceRecoveryModal';
+import { TemplatesModal } from './TemplatesModal';
+import { SettingsModal } from './SettingsModal';
+import { AiGenerationModal } from './AiGenerationModal';
+import { PolicyComparisonModal } from './PolicyComparisonModal';
+import { ApprovalsModal } from './ApprovalsModal';
+import { SsoModal } from './SsoModal';
+import { applyThemeToDocument } from '../../lib/theme';
 
 export const TreeWorkspace: React.FC = () => {
+
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const selectedNodeId = useTreeStore((state) => state.selectedNodeId);
@@ -32,6 +40,18 @@ export const TreeWorkspace: React.FC = () => {
 
   useEffect(() => {
     useTreeStore.getState().initializePersistence();
+    applyThemeToDocument(useTreeStore.getState().persistedSettings.theme);
+
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      const media = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleMedia = () => {
+        if (useTreeStore.getState().persistedSettings.theme === 'system') {
+          applyThemeToDocument('system');
+        }
+      };
+      media.addEventListener('change', handleMedia);
+      return () => media.removeEventListener('change', handleMedia);
+    }
   }, []);
 
   useEffect(() => {
@@ -120,6 +140,17 @@ export const TreeWorkspace: React.FC = () => {
       {/* Day 16 Modals */}
       <ResetConfirmationModal />
       <PersistenceRecoveryModal />
+
+      {/* Day 21 & Day 24 Modals */}
+      <TemplatesModal />
+      <SettingsModal />
+      <AiGenerationModal />
+
+      {/* Days 22, 26, 30 Modals */}
+      <PolicyComparisonModal />
+      <ApprovalsModal />
+      <SsoModal />
     </div>
   );
 };
+

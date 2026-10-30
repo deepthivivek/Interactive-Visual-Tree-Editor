@@ -1,0 +1,846 @@
+# MASTER PROMPT: COMPLETE ENTERPRISE-READY INTERACTIVE VISUAL TREE EDITOR
+
+## ROLE AND MISSION
+
+Act as a senior software architect, full-stack engineer, database engineer, security engineer, QA engineer, accessibility specialist, and DevOps engineer.
+
+You are responsible for completing my existing **Interactive Visual Tree Editor — Task 4** project and making it as reliable, maintainable, secure, data-accurate, and production-deployable as possible.
+
+I want a complete working application suitable for genuine company workflows, not a prototype, mockup, frontend-only demonstration, or collection of disconnected features.
+
+**Primary objective:** achieve 100/100 against verified acceptance criteria, with every feature working realistically, correct data handling throughout the application, tested integrations, safe error recovery, and minimal deployment friction.
+
+Do not merely explain, plan, or suggest code. Inspect the repository, implement the required changes, run the appropriate checks, fix defects, and verify the actual workflows.
+
+Never claim completion without evidence.
+
+---
+
+# PART 1 — INSPECT THE EXISTING PROJECT FIRST
+
+Before modifying anything:
+
+1. Inspect the repository structure, source files, dependencies, scripts, tests, configuration, and documentation.
+2. Inspect the existing Git working tree. Preserve user changes and do not overwrite unrelated work.
+3. Identify the existing implementation of every original feature and every roadmap feature.
+4. Verify the current Templates and Settings implementation rather than trusting previous completion reports.
+5. Inspect the actual graph schema, state management, validation, JSON import/export, persistence, undo/redo, and relationship rules.
+6. Determine whether the project currently has a backend, database, authentication, file storage, external integrations, and deployment infrastructure.
+7. Run the available baseline tests, lint, TypeScript checks, and production build. Record actual results and existing failures.
+8. Identify missing functionality, architectural risks, data-integrity problems, security issues, performance bottlenecks, and missing infrastructure.
+9. Create or update a persistent implementation tracker that can be used across coding sessions.
+
+The tracker must contain:
+
+- Feature and milestone.
+- Acceptance criteria.
+- Current status.
+- Relevant files and modules.
+- Dependencies and blockers.
+- Tests required.
+- Tests actually executed and their results.
+- Manual verification status.
+- Outstanding defects.
+- Next actions.
+
+Do not unnecessarily rewrite working code. Reuse and improve sound existing implementations. Make foundational changes when necessary, but document the reason.
+
+If a session ends before the roadmap is complete, update the tracker and resume from the last verified milestone. Never pretend unfinished work is complete.
+
+---
+
+# PART 2 — ORIGINAL TASK 4 REQUIREMENTS
+
+## 2.1 Purpose
+
+The application allows users to visually create, edit, connect, validate, inspect, and manage hierarchical structures such as compliance rule trees, organization charts, and decision workflows.
+
+## 2.2 Required functionality
+
+Preserve and verify all of the following:
+
+1. Interactive canvas with zoom, pan, reset, and grid-background toggle.
+2. Four node types: Root, Rule, Condition, and Action.
+3. Sidebar palette supporting node creation through drag-and-drop and appropriate alternative interactions.
+4. Directional parent-child connections.
+5. Add child, duplicate, delete, and re-parent operations.
+6. Property inspector for labels, rule IDs, descriptions, severity, parameters, and metadata tags.
+7. Validated live property editing.
+8. Search, matching-node highlighting, and navigation.
+9. Automatic tree layout.
+10. MiniMap navigation.
+11. JSON import and export.
+12. Validation diagnostics for invalid relationships, orphaned nodes, circular references, and other applicable graph errors.
+13. Strict TypeScript node and graph interfaces.
+14. Maintainable component and state-management architecture.
+15. Reliable persistence and recovery within the supported architecture.
+16. Automated testing and documentation.
+
+Inspect the actual project before assuming a specific package or implementation exists. Preserve Next.js, TypeScript, Tailwind, React Flow, Zustand, Zundo, Dagre, Zod, lucide-react, and other existing dependencies where appropriate.
+
+## 2.3 Canonical relationship rules
+
+Unless an explicitly approved and documented change to the original specification exists, enforce:
+
+- Root → Rule.
+- Rule → Condition.
+- Rule → Action.
+- Condition → Action.
+- Action → no children.
+- Condition → Condition is not allowed.
+
+Prevent cycles, duplicate IDs, invalid parent counts, invalid relationships, and unintended orphaned nodes according to the canonical graph model.
+
+Enforce the same rules in manual editing, imports, templates, AI generation, simulation, collaboration, and server-side validation. Do not duplicate conflicting versions of business rules across components.
+
+---
+
+# PART 3 — NON-NEGOTIABLE ENGINEERING STANDARDS
+
+## 3.1 Complete vertical implementation
+
+Every feature must include all applicable layers:
+
+1. User interface and interactions.
+2. Domain logic and business rules.
+3. Input validation and data transformation.
+4. State management and undo/redo where appropriate.
+5. Persistence or actual backend integration.
+6. Authentication and authorization where required.
+7. Loading, success, cancellation, timeout, and failure handling.
+8. Automated tests and integration tests.
+9. Browser-level verification.
+10. Documentation and configuration.
+
+A visible button does not prove that a feature works. A frontend connected only to temporary memory does not prove persistence. A mock service does not prove a real integration.
+
+If a layer is unnecessary, document why rather than adding artificial complexity.
+
+## 3.2 Code quality
+
+- Use strict TypeScript and explicit domain types.
+- Avoid `any`, unsafe casts, unnecessary duplication, and loosely defined data structures.
+- Separate business logic from UI components.
+- Centralize graph rules, schema definitions, and validation.
+- Use cohesive modules, clear naming, and consistent error handling.
+- Avoid unnecessary dependencies and unjustified rewrites.
+- Follow existing project conventions.
+- Remove unused code and resolve relevant warnings.
+- Document important architectural and security decisions.
+
+## 3.3 No fake functionality
+
+Do not leave:
+
+- Placeholder buttons presented as complete features.
+- Disconnected controls.
+- Hardcoded responses presented as real integrations.
+- Mock services silently enabled in production.
+- In-memory-only behavior presented as persistent storage.
+- Fake successful operations.
+- Silent exception handling.
+- Unfinished critical TODOs.
+- Undocumented manual workarounds.
+- Features that require editing source code to perform ordinary configuration.
+
+When required infrastructure is unavailable, implement what can be completed safely and document the exact blocker. Never manufacture a successful result.
+
+## 3.4 Safe changes
+
+- Never silently corrupt, discard, or overwrite user data.
+- Confirm destructive operations and allow cancellation.
+- Preserve existing data if an import or replacement fails.
+- Make multi-step operations atomic where appropriate.
+- Integrate with undo/redo when logically reversible.
+- Prevent stale updates, race conditions, and duplicate side effects.
+- Preserve existing functionality.
+- Do not commit, push, deploy, delete production data, or modify live infrastructure without authorization.
+
+---
+
+# PART 4 — CANONICAL DATA ARCHITECTURE
+
+This section applies to every feature.
+
+## 4.1 Graph schema
+
+Define one canonical graph model containing, as appropriate:
+
+- Graph ID and schema version.
+- Graph metadata.
+- Nodes with stable unique IDs.
+- Node types and validated properties.
+- Directed edges and relationship information.
+- Graph-level settings.
+- Created and updated metadata.
+- Document version information.
+- Ownership and tenant metadata for server-backed systems.
+- Approval and audit metadata where required.
+
+Define required and optional fields, nullability, default values, parameter types, relationship constraints, and supported schema versions.
+
+Keep one authoritative source of truth. Derived or cached data must have a clear invalidation strategy.
+
+## 4.2 Data integrity
+
+Verify that:
+
+- IDs remain unique after duplication, import, and template application.
+- Deleting nodes does not leave invalid edges.
+- Re-parenting updates graph relationships consistently.
+- Undo/redo restores the expected state.
+- Search and comparison use current data.
+- Simulation uses the intended graph version.
+- Exports represent the intended graph snapshot.
+- Validation diagnostics are refreshed after edits.
+- Asynchronous updates cannot overwrite newer data.
+- Failed operations do not leave partially modified graphs.
+
+## 4.3 Persistence
+
+Inspect the existing persistence implementation and document its guarantees.
+
+If only localStorage exists, describe it honestly as browser-local persistence, not company-wide shared storage.
+
+For browser storage:
+
+- Handle unavailable or full storage.
+- Handle malformed and corrupted saved data.
+- Validate data before restoration.
+- Use safe schema migrations.
+- Handle quota errors and interrupted writes.
+- Preserve recoverable data where feasible.
+- Display saving, saved, unsaved, and failed-to-save states.
+- Avoid silently replacing recoverable data with defaults.
+
+For company-wide data, implement a suitable backend and database when required by the actual product architecture. Include server-side validation, authentication, authorization, transaction handling, concurrency control, and useful errors.
+
+Verify persistence by reading saved data back through the actual supported persistence layer.
+
+## 4.4 Import, export, and migration
+
+- Validate imports before changing the active graph.
+- Support explicitly documented schema versions.
+- Migrate supported older versions safely.
+- Reject unsupported versions clearly.
+- Do not silently drop or reinterpret unknown data.
+- Make import atomic.
+- Prevent prototype pollution and unsafe object handling.
+- Apply reasonable file-size, graph-size, and processing limits.
+- Test malformed JSON, duplicate IDs, invalid relationships, oversized graphs, and migration failures.
+
+---
+
+# PART 5 — IMPLEMENT ALL TEN ROADMAP FEATURES
+
+Follow the priority order exactly unless a documented foundational dependency requires a small justified change.
+
+## DAY 27 — TEMPLATES
+
+### Objective
+
+Provide reusable, validated templates that work with the actual graph editor.
+
+### Requirements
+
+1. Implement a centralized, typed template registry or persistence-backed template service.
+2. Include:
+   - Enterprise Compliance & Risk Framework.
+   - FINRA Communications Governance.
+   - SEC Rule 17a-4 Records Retention.
+   - Minimal Starter Policy.
+   - Blank Canvas.
+3. Label compliance examples as illustrative unless their content has been formally reviewed and approved.
+4. Give each template a stable ID, name, description, version, schema version, and valid initial graph.
+5. Validate nodes, edges, required fields, relationships, IDs, and cycles before application.
+6. Generate fresh unique IDs for each instantiated template.
+7. Avoid shared mutable objects between templates and active graph data.
+8. Provide a preview and clearly explain replacement behavior.
+9. Require confirmation before destructive replacement.
+10. Ensure cancellation leaves the graph, selection, history, and persistence unchanged.
+11. Apply templates atomically.
+12. Integrate template application with validation, undo/redo, autosave, layout, search, and export.
+13. If users can save templates, implement ownership, permissions, persistence, and versioning.
+14. Handle malformed templates, invalid relationships, oversized templates, and persistence failures.
+15. Test repeated application, ID uniqueness, cancellation, undo/redo, refresh, and feature integration.
+
+### Acceptance criteria
+
+Users can select, preview, apply, cancel, and reuse templates safely. The resulting graph is valid and behaves like a manually created graph.
+
+## DAY 22 — POLICY COMPARISON
+
+### Objective
+
+Compare two graph documents or versions and report accurate differences.
+
+### Requirements
+
+1. Provide a usable interface for selecting comparison sources.
+2. Clearly define whether sources are current snapshots, saved documents, imported files, or server-backed versions.
+3. Match nodes and edges by stable IDs.
+4. Detect added, removed, and changed nodes.
+5. Detect changes to labels, descriptions, severity, rule IDs, parameters, metadata, and other supported properties.
+6. Detect added and removed edges and relationship changes.
+7. Distinguish missing values, null, empty strings, and defaults where appropriate.
+8. Do not match nodes solely by display label or array position.
+9. Identify ambiguous matches instead of inventing a confident match.
+10. Present a readable summary and navigation to affected nodes.
+11. Keep source graphs immutable.
+12. Handle large graphs without freezing the UI.
+13. Display source versions and timestamps only when supported by trustworthy metadata.
+14. Produce deterministic results.
+15. Test identical graphs, renamed nodes, changed properties, deleted subtrees, edge changes, malformed inputs, and large graphs.
+
+### Acceptance criteria
+
+Comparison results accurately represent changes and do not mutate the source documents.
+
+## DAY 23 — PDF AND SVG EXPORT
+
+### Objective
+
+Generate real downloadable files representing the intended graph.
+
+### Requirements
+
+1. Export the complete graph rather than only the visible viewport.
+2. Include directed edges, labels, node types, and relevant supported properties.
+3. Use readable layout, spacing, and long-label handling.
+4. Handle large graphs through scaling, pagination, or another documented strategy.
+5. Support Unicode, special characters, multiline labels, and empty graphs.
+6. Make output independent of temporary hover and selection states.
+7. Generate meaningful filenames.
+8. Provide appropriate progress and error messages.
+9. Sanitize SVG output and prevent script injection and unsafe external references.
+10. Prevent accidental export of secrets or unauthorized metadata.
+11. Ensure PDF page dimensions, pagination, and text readability are appropriate.
+12. Inspect or render generated artifacts where feasible.
+13. Test malformed graphs, large graphs, special characters, and repeated exports.
+14. Implement actual server-side generation and authorization if required by the architecture.
+
+### Acceptance criteria
+
+Users receive valid, readable files representing the intended graph. Export errors are handled safely, and no required graph data is silently omitted.
+
+## DAY 28 — ACCESSIBILITY, THEMES, AND RESPONSIVE DESIGN
+
+### Objective
+
+Make the application usable across supported devices and with assistive technologies.
+
+### Requirements
+
+1. Provide keyboard navigation for major workflows.
+2. Include visible focus indicators and logical focus order.
+3. Give controls accessible names and correct semantics.
+4. Manage dialog focus, dismissal, and focus restoration appropriately.
+5. Announce relevant validation errors and operation outcomes.
+6. Provide keyboard-accessible alternatives for essential canvas operations.
+7. Never communicate status or severity through color alone.
+8. Check contrast for text, controls, focus, and status indicators.
+9. Apply light and dark themes consistently across canvas, dialogs, menus, forms, and MiniMap.
+10. Persist theme and relevant user settings.
+11. Respect reduced-motion preferences.
+12. Test responsive layouts, zoom, scrolling, overflow, and long text.
+13. Ensure core functionality remains usable on supported smaller screens.
+14. Fix accessibility defects found during testing.
+15. Document the accessibility audit and standard used.
+
+### Acceptance criteria
+
+Core workflows remain usable with a keyboard, theme settings work consistently, and supported screen sizes do not break essential functionality. Do not claim formal WCAG compliance without evidence.
+
+## DAY 25 — RULE SIMULATION
+
+### Objective
+
+Evaluate a graph against test input and explain the decision path without executing real-world actions.
+
+### Requirements
+
+1. Define the rule language and evaluation semantics before implementing the engine.
+2. Document the meaning of Root, Rule, Condition, and Action nodes.
+3. Define supported operators, parameter types, evaluation order, branch selection, and terminal behavior.
+4. Validate the graph and input before evaluation.
+5. Reject invalid relationships, cycles, unsupported operators, malformed parameters, and ambiguous branches.
+6. Define behavior for missing data, null values, incorrect types, empty values, and unknown operators.
+7. Return structured results containing status, evaluated nodes, condition results, selected branches, actions that would run, execution path, and diagnostics.
+8. Explain why conditions passed or failed.
+9. Keep simulation read-only by default.
+10. Never execute arbitrary code or use `eval` on supplied content.
+11. Never trigger external actions or modify company systems through the simulator.
+12. Apply reasonable execution limits.
+13. Associate results with the exact graph snapshot and input data used.
+14. Make runs deterministic and reproducible.
+15. Test nested conditions, true/false results, missing fields, invalid values, boundaries, and runtime failures.
+
+### Acceptance criteria
+
+Users can run valid graphs against test data and receive understandable, reproducible execution traces. Simulation must not be misrepresented as actual execution of external actions.
+
+## DAY 29 — REGRESSION AND INTEGRATION TESTING
+
+### Objective
+
+Prove that original and new features work together.
+
+### Requirements
+
+1. Record baseline test results and investigate existing failures.
+2. Add unit tests for graph rules, validation, templates, comparison, simulation, persistence, and export.
+3. Add integration tests for state management, persistence, imports, exports, APIs, and service boundaries.
+4. Add browser-based end-to-end tests for important user workflows.
+5. Test keyboard interaction, cancellation, invalid data, loading states, network failures, and permission denials.
+6. Use realistic fixtures and representative large graphs.
+7. Add regression tests for discovered defects.
+8. Test feature combinations rather than only isolated screens.
+9. Keep tests deterministic and independent of production data.
+10. Test server-side authorization with appropriate test identities.
+11. Detect unexpected browser-console errors and unhandled promise rejections in end-to-end tests.
+12. Run lint, type checking, relevant tests, and the production build after meaningful milestones.
+13. Report actual commands and outcomes.
+14. Add performance tests where graph size or data volume matters.
+15. Keep test documentation runnable and accurate.
+
+### Mandatory end-to-end scenarios
+
+- Apply a template → edit nodes → undo/redo → save → refresh → export.
+- Compare two graph versions → inspect differences → verify neither source changes.
+- Export a graph → continue editing → verify the active graph remains correct.
+- Change settings → refresh → verify persistence.
+- Edit a condition → run simulation → verify the results reflect the edited version.
+- Import invalid JSON → verify the original graph remains unchanged.
+- Delete and re-parent nodes → verify relationships and diagnostics.
+- Generate an AI proposal → validate → cancel or accept safely.
+- If collaboration exists, edit from two clients and test conflict recovery.
+- If authorization exists, verify forbidden operations are denied.
+- If SSO exists, verify authenticated and unauthenticated access.
+
+### Acceptance criteria
+
+Critical workflows pass the relevant tests, regressions are fixed or disclosed, and quality-gate results are based on commands actually executed.
+
+## DAY 24 — AI RULE GENERATION
+
+### Objective
+
+Generate proposed graphs from natural-language requirements with strict validation and human approval.
+
+### Requirements
+
+1. Define a provider interface that separates business logic from the specific AI service.
+2. Accept natural-language requirements and return structured graph proposals with explanations.
+3. Validate output against a strict schema.
+4. Validate node types, IDs, relationships, cycles, required fields, parameter types, and graph-size limits.
+5. Treat generated content as untrusted.
+6. Show a preview, explanation, and validation results before application.
+7. Require explicit user acceptance.
+8. Never automatically approve or execute generated business rules.
+9. Support cancellation, timeouts, rate limits, bounded retries, and clear errors.
+10. Prevent duplicate requests and uncontrolled API costs.
+11. Keep API keys on the server.
+12. Document what data is sent to the provider and how sensitive information is protected.
+13. Do not send confidential company information externally without appropriate authorization and configuration.
+14. Use deterministic mocks for tests, clearly separated from live provider mode.
+15. Never present mock responses as live AI generation.
+16. Store appropriate generation metadata without unnecessarily retaining sensitive prompts or secrets.
+17. Test malformed responses, invalid graphs, provider failures, timeouts, cancellation, and successful validation.
+
+### Acceptance criteria
+
+AI output is a validated proposal, not trusted executable policy. The user retains control, and mock mode is never confused with a real provider integration.
+
+## DAY 21 — REAL-TIME COLLABORATION
+
+### Objective
+
+Enable multiple authorized users to work on shared graph documents reliably.
+
+### Requirements
+
+1. Inspect available backend and storage infrastructure first.
+2. Define authoritative data ownership, versioning, and synchronization protocol.
+3. Persist shared changes through the authorized backend.
+4. Synchronize changes across independent clients.
+5. Handle simultaneous edits, stale updates, reconnects, duplicate messages, out-of-order messages, and interrupted connections.
+6. Use revision checks, operational transformation, CRDTs, or another justified consistency approach.
+7. Prevent stale saves from silently overwriting newer changes.
+8. Define collaborative undo/redo behavior.
+9. Provide appropriate presence and connection indicators.
+10. Enforce permissions on the server.
+11. Support reconnect recovery and idempotent operations where appropriate.
+12. Test with at least two independent clients using the actual synchronization mechanism.
+13. Test concurrent edits, conflicts, reconnects, and unauthorized access.
+14. Never present local-only state or simulated presence as real collaboration.
+15. If infrastructure is missing, implement safe groundwork and document the blocker.
+
+### Acceptance criteria
+
+Authorized clients share consistent graph updates, conflicts follow documented rules, and supported connection failures do not cause silent data loss.
+
+## DAY 26 — ROLES, PERMISSIONS, AND APPROVALS
+
+### Objective
+
+Implement actual access control and auditable approval workflows.
+
+### Requirements
+
+1. Define a documented role and permission matrix suitable for the application.
+2. Consider Viewer, Editor, Reviewer, Approver, and Administrator roles where appropriate.
+3. Define permissions for reading, editing, importing, exporting, submitting, reviewing, approving, rejecting, publishing, and administration.
+4. Enforce protected operations on the trusted backend.
+5. Never use frontend checks as the security boundary.
+6. Deny protected operations by default when authorization cannot be established.
+7. Enforce tenant and resource ownership boundaries.
+8. Implement documented approval-state transitions, such as Draft → In Review → Approved or Rejected.
+9. Reject invalid transitions and unauthorized operations.
+10. Enforce separation of duties when required by company policy.
+11. Associate approvals with exact graph versions.
+12. Prevent later edits from silently modifying approved snapshots.
+13. Define rejection, resubmission, revocation, and superseding behavior.
+14. Record auditable events for important actions, including actor, action, target, timestamp, and relevant version.
+15. Do not log passwords, access tokens, or unnecessary sensitive information.
+16. Test privilege escalation, unauthorized operations, cross-tenant access, invalid transitions, and approval history.
+17. Distinguish simulated roles from actual server-enforced authorization.
+
+### Acceptance criteria
+
+Permissions are enforced by trusted infrastructure, approvals are traceable, and approved versions cannot be silently altered.
+
+## DAY 30 — ENTERPRISE SINGLE SIGN-ON
+
+### Objective
+
+Implement secure SSO using a real, supported authentication protocol.
+
+### Requirements
+
+1. Inspect the existing authentication system before selecting an approach.
+2. Use an appropriate maintained authentication library where possible.
+3. Support the identity provider and protocol actually required, such as OIDC or SAML where appropriate.
+4. Validate issuer, audience, state, nonce, redirect URI, signatures, expiry, and applicable replay protections.
+5. Implement secure sessions, appropriate cookie flags, session expiry, and logout.
+6. Map verified identities to application accounts, organizations, and permissions.
+7. Never trust arbitrary client-provided identity or role claims.
+8. Prevent open redirects, account-linking errors, replay attacks, and authentication bypasses.
+9. Keep credentials and secrets in secure server-side configuration.
+10. Document identity-provider setup, callback URLs, required configuration, key/certificate rotation where applicable, and recovery procedures.
+11. Test login, logout, expired sessions, invalid responses, denied users, and unauthorized resource access.
+12. Use a test identity provider or equivalent test environment for automated testing.
+13. Do not claim SSO is ready for a specific company until the real configured flow is verified.
+14. If credentials or a provider are unavailable, complete and test the possible groundwork and document the exact remaining setup.
+
+### Acceptance criteria
+
+SSO uses a real supported protocol, provider responses are verified, protected resources enforce authorization, and administrators have clear configuration instructions.
+
+---
+
+# PART 6 — CROSS-FEATURE INTEGRATION
+
+All features must work with the original editor and canonical graph model.
+
+Verify:
+
+1. Templates work with editing, search, validation, layout, undo/redo, persistence, and export.
+2. Comparison uses correct graph snapshots and never mutates sources.
+3. Exports represent the intended graph version.
+4. Theme and accessibility settings do not break canvas interactions or dialogs.
+5. Simulation uses the correct version and does not execute external actions.
+6. Regression tests cover complete workflows.
+7. AI-generated graphs use the same canonical validation as manually created graphs.
+8. Collaboration preserves consistency and permissions.
+9. Approvals refer to exact versions.
+10. SSO identities map to server-enforced permissions.
+
+Also verify all original workflows: node creation, connection, editing, deletion, duplication, re-parenting, search, layout, MiniMap, grid controls, JSON import/export, validation, and persistence.
+
+No new feature may silently break existing functionality.
+
+---
+
+# PART 7 — SECURITY, PRIVACY, AND COMPLIANCE SAFEGUARDS
+
+Perform a security review appropriate to the actual architecture.
+
+Inspect:
+
+- Authentication and authorization boundaries.
+- Tenant isolation and resource ownership.
+- Unsafe rendering and cross-site scripting.
+- Malicious SVG and imported file content.
+- CSRF and session risks where applicable.
+- Open redirects and unsafe URL handling.
+- Exposed secrets and credentials.
+- Dependency vulnerabilities.
+- Oversized inputs and resource exhaustion.
+- Server-side validation and access control.
+- Audit integrity and sensitive-data exposure.
+- Safe errors and operational logging.
+
+For compliance-related functionality:
+
+- Label illustrative templates appropriately.
+- Do not claim templates guarantee legal or regulatory compliance.
+- Make approval status and version history explicit.
+- Preserve approved snapshots.
+- Do not invent regulatory requirements or legal guarantees.
+
+Fix identified issues and disclose unresolved risks. A clean dependency scan alone does not prove that the application is secure.
+
+---
+
+# PART 8 — PERFORMANCE AND RELIABILITY
+
+1. Identify expensive operations in rendering, validation, comparison, layout, search, persistence, and simulation.
+2. Avoid unnecessary recomputation on every small interaction.
+3. Use indexing, batching, memoization, virtualization, or background processing where justified.
+4. Ensure optimizations do not introduce stale-data bugs.
+5. Establish realistic graph-size and response-time targets.
+6. Measure performance instead of guessing.
+7. Test small, typical, and large graphs.
+8. Handle oversized input and resource exhaustion gracefully.
+9. Prevent runaway layout or simulation operations.
+10. Ensure failures do not leave the editor partially updated.
+
+Do not promise unlimited graph size or instant performance without evidence.
+
+---
+
+# PART 9 — USER EXPERIENCE AND DATA TRANSPARENCY
+
+Display appropriate indicators for:
+
+- Saving, saved, unsaved, and failed-to-save states.
+- Online, offline, reconnecting, and conflict states where applicable.
+- Validation errors and warnings.
+- Current graph version.
+- Draft, review, approval, and publication status where applicable.
+- AI mock mode versus live provider mode.
+- Import/export success and failure.
+- Permission denial and unavailable services.
+
+Use clear contextual messages and accessible status announcements.
+
+Never show a successful-save or successful-export message before success is confirmed. Users must be able to understand what happened, whether their data was saved, and what action to take next.
+
+---
+
+# PART 10 — CONFIGURATION AND COMPANY DEPLOYMENT
+
+Design the application so ordinary company setup does not require source-code modifications.
+
+- Centralize environment-specific configuration.
+- Validate required configuration at startup.
+- Provide a safe example environment file without real secrets.
+- Separate development, test, staging, and production configuration.
+- Make company-specific settings configurable where appropriate.
+- Avoid hardcoding company names, credentials, domains, user identities, policies, and deployment URLs.
+- Do not silently substitute mock services when production services are unavailable.
+- Document required infrastructure, credentials, domains, identity-provider settings, and company decisions.
+- Implement safe error handling for missing or invalid configuration.
+
+Where applicable, provide:
+
+- Reproducible installation and build steps.
+- Database migration and rollback guidance.
+- Secure environment-variable handling.
+- Health checks and operational logging.
+- Backup and restoration procedures.
+- Authentication and authorization configuration.
+- File-storage configuration.
+- Dependency and security checks.
+- Deployment and recovery instructions.
+- Development, staging, and production configuration guidance.
+
+Do not expose secrets in source code or client bundles. Do not deploy or modify live infrastructure without authorization.
+
+## Required deployment-readiness checklist
+
+Create four explicit sections:
+
+**A. Code completed and tested:** verified functionality and supporting test evidence.
+
+**B. Configuration required:** environment variables, provider credentials, domains, database, storage, and callback URLs.
+
+**C. Company decisions required:** roles, approval policies, data retention, AI-provider restrictions, and identity-provider requirements.
+
+**D. Production verification required:** deployment, backups, restoration, monitoring, security review, performance checks, and user acceptance testing.
+
+Do not claim universal zero-setup deployment. The goal is no source-code modifications for ordinary configuration, with any required company setup documented precisely.
+
+---
+
+# PART 11 — TESTING AND VERIFICATION
+
+For every milestone:
+
+1. Inspect the implementation and identify gaps.
+2. Define measurable acceptance criteria.
+3. Implement the complete workflow.
+4. Add unit tests.
+5. Add integration tests.
+6. Add end-to-end tests for critical workflows.
+7. Run relevant tests.
+8. Fix failures and regressions.
+9. Run lint and TypeScript checks.
+10. Run the production build.
+11. Perform manual browser checks where possible and required.
+12. Update documentation and the tracker.
+13. Record evidence and remaining limitations.
+
+At the end, verify:
+
+- Original Task 4 compliance.
+- All ten roadmap features.
+- Cross-feature integration.
+- Data integrity and persistence.
+- Import/export correctness.
+- Security-sensitive behavior.
+- Authorization where implemented.
+- Accessibility and responsive behavior.
+- Performance on representative graphs.
+- Deployment and recovery documentation.
+
+Use three verification levels:
+
+**Level A — Automated:** unit, integration, end-to-end, regression, and relevant security tests.
+
+**Level B — Real integrations:** actual database operations, generated files, configured AI provider, independent collaboration clients, and identity-provider flows where applicable.
+
+**Level C — Manual acceptance:** real-browser workflows, keyboard interactions, cancellation, error recovery, refresh and persistence, responsive layouts, and accessibility checks.
+
+Record actual outcomes. Distinguish passing, failing, skipped, blocked, and not tested. Do not claim that manual testing was performed unless it was.
+
+---
+
+# PART 12 — FINAL ZERO-HIDDEN-GAPS ACCEPTANCE REVIEW
+
+After implementation, perform an independent acceptance pass. Do not rely solely on tests written while implementing the features.
+
+For every original requirement and roadmap feature:
+
+1. Verify the requirement against the actual code.
+2. Verify the behavior in the running application where possible.
+3. Verify saved data through the actual supported persistence layer where applicable.
+4. Verify negative and failure cases.
+5. Check that related features still work.
+6. Record evidence.
+7. Fix defects and add regression tests.
+8. Repeat verification.
+9. Update the status and remaining risks.
+
+Use these status definitions:
+
+- **Verified complete:** implemented and supported by successful relevant tests.
+- **Implemented, verification pending:** code exists but required verification remains.
+- **Blocked:** required infrastructure, credentials, access, or a company decision is unavailable.
+- **Incomplete:** required behavior is missing.
+- **Failed:** verification found a defect.
+
+Prioritize data loss, security, authorization, incorrect rule evaluation, broken core workflows, and major performance problems above cosmetic improvements.
+
+---
+
+# PART 13 — FINAL QUALITY SCORECARD
+
+Score the project out of 100 using this rubric:
+
+| Category | Points |
+|---|---:|
+| Original Task 4 compliance and preservation of existing features | 20 |
+| Functional completeness and acceptance criteria | 25 |
+| Data integrity, persistence, migrations, and recovery | 15 |
+| Security, privacy, authentication, and authorization | 15 |
+| Testing, regression coverage, and integration reliability | 10 |
+| Accessibility, usability, and responsive behavior | 5 |
+| Performance and reliability | 5 |
+| Documentation, configuration, and deployment readiness | 5 |
+| **Total** | **100** |
+
+Score only demonstrated functionality. Explain deductions with evidence and specify what remains to reach the target.
+
+Do not award 100/100 merely because the code compiles, the UI looks finished, or automated tests pass.
+
+Do not mark the application fully company-ready while critical requirements fail, essential features are mocked, required integrations are unverified, or known high-impact defects remain.
+
+---
+
+# PART 14 — REQUIRED FINAL REPORT AND HANDOVER
+
+When implementation is complete, provide a feature-by-feature report containing:
+
+- Feature name and acceptance criteria.
+- Status.
+- Files and modules changed.
+- Data source and persistence behavior.
+- Tests actually executed and results.
+- Manual checks genuinely performed.
+- Security and error-handling coverage.
+- Known defects.
+- Missing configuration or infrastructure.
+- Evidence supporting completion claims.
+
+Also report:
+
+1. Original Task 4 compliance score.
+2. Functional completeness score.
+3. Data integrity and persistence score.
+4. Security and authorization score.
+5. Testing and reliability score.
+6. Accessibility and usability score.
+7. Performance and reliability score.
+8. Documentation and deployment-readiness score.
+9. Total score out of 100.
+10. A prioritized list of remaining work.
+
+Create or update documentation covering:
+
+- README and installation.
+- Architecture and domain model.
+- Schema versioning and migrations.
+- Feature usage.
+- API documentation where applicable.
+- Test commands and actual quality-gate results.
+- Security and privacy considerations.
+- Persistence, backup, and recovery.
+- Environment configuration.
+- Deployment and rollback.
+- Company-specific setup.
+- Known limitations and unresolved risks.
+- Implementation tracker.
+
+Ensure documentation accurately reflects the actual implementation.
+
+---
+
+# FINAL EXECUTION INSTRUCTION
+
+Begin by inspecting the repository and establishing the baseline.
+
+Then implement the roadmap in this order:
+
+1. Day 27 — Templates.
+2. Day 22 — Policy comparison.
+3. Day 23 — PDF/SVG export.
+4. Day 28 — Accessibility and themes.
+5. Day 25 — Rule simulation.
+6. Day 29 — Regression testing.
+7. Day 24 — AI rule generation.
+8. Day 21 — Collaboration.
+9. Day 26 — Roles and approvals.
+10. Day 30 — SSO.
+
+Address foundational dependencies when necessary and document any justified adjustment.
+
+Do not stop after writing a plan. Make the actual code changes, execute relevant tests, fix failures, verify workflows, and maintain the tracker. If the work exceeds one session, continue from the last verified milestone.
+
+Never substitute screenshots, plausible-looking interfaces, mock responses, or unsupported claims for working software.
+
+The goal is a **complete, reliable, maintainable, data-correct, secure, tested, and company-deployable Interactive Visual Tree Editor**. Aim for 100/100, but report that score only when the evidence supports it.
+
+If company-specific credentials, infrastructure, or policy decisions are required, minimize the remaining setup, make it configurable, and document it precisely rather than hiding the dependency.
+
+Start now by inspecting the actual repository and reporting the baseline before making modifications.

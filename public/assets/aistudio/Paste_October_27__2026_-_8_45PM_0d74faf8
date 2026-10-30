@@ -1,0 +1,976 @@
+# DAY 20 — FINAL 10/10 MASTER PROMPT
+## Interactive Visual Tree Editor — Official Task 4 Compliance, Release Candidate Hardening, Documentation & Demo Readiness
+
+You are working on my existing **Interactive Visual Tree Editor** project. Days 1–19 contain the work already completed. Your responsibility for Day 20 is to prepare the existing project for a reliable release candidate by verifying requirements, fixing genuine release-blocking problems, completing documentation, running quality checks, verifying deployment, and preparing a demonstration.
+
+**Day 20 is the final implementation and release-readiness day. Do not implement Day 21 or introduce new product features.**
+
+Work directly in the existing repository and inspect the actual code before making changes. Do not assume that a feature works simply because its code exists or a previous report says it works.
+
+---
+
+# 1. ABSOLUTE RULES — MUST FOLLOW
+
+1. Preserve all working functionality developed during Days 1–19.
+2. Do not rewrite the project, replace its architecture, or refactor unrelated files.
+3. Do not introduce new product features. Make only changes required for official Task 4 compliance, release-blocking bugs, serious accessibility or usability defects, quality-check failures, deployment blockers, safe cleanup, and documentation.
+4. Do not weaken tests, remove failing tests to obtain a green result, or change expected behavior merely to make checks pass.
+5. Do not introduce unnecessary dependencies. Reuse existing libraries and tools.
+6. Use strict TypeScript. Do not introduce `any` or bypass type safety to hide errors.
+7. Do not use destructive Git commands, reset the repository, overwrite unrelated work, or discard the user's changes.
+8. Do not create a Git commit. I will commit manually.
+9. Do not deploy, publish, change production configuration, or perform other externally visible actions without authorization. You may inspect deployment status and use existing authorized workflows.
+10. Never fabricate test results, screenshots, URLs, deployment status, browser checks, or feature-verification results.
+11. Do not claim a feature is tested or demo-ready unless you have evidence appropriate to that claim.
+12. If a requirement cannot be verified because the official specification, environment, credentials, browser, or another dependency is unavailable, clearly report the limitation instead of guessing.
+13. Do not claim that the application is production-certified or officially compliant beyond the evidence available.
+14. Keep changes minimal, understandable, maintainable, and consistent with the existing project.
+15. **Stop after Day 20. Do not start Day 21 or implement any part of Days 21–30.**
+
+The official Task 4 requirements take priority over optional enhancements. Existing working functionality takes priority over cosmetic refactoring.
+
+---
+
+# 2. STEP 1 — INSPECT THE REPOSITORY AND ESTABLISH A BASELINE
+
+Before modifying anything, inspect the existing repository.
+
+Review:
+
+- `package.json` and the lockfile.
+- The actual source directory and project structure.
+- `README.md`, `REQUIREMENTS.md`, `ARCHITECTURE.md`, and `CHANGELOG.md`, if present.
+- Existing test files and test configuration.
+- TypeScript, ESLint, Vite, Vitest, and other relevant configurations.
+- Graph state, UI state, relationship rules, validation, import/export, persistence, undo/redo, layout, and UI components.
+- Existing Git changes, without modifying or discarding them.
+- Existing deployment configuration and the configured deployment URL, if available.
+
+Identify the actual framework, libraries, scripts, and architecture from the repository. Do not assume that a dependency, component, test, or capability exists until you confirm it.
+
+Before editing:
+
+1. Record the current Git working-tree status and existing user changes.
+2. Identify the baseline test, lint, type-check, and build commands.
+3. Run baseline checks where practical and record the actual results.
+4. Note pre-existing failures separately from failures introduced by Day 20.
+5. Identify missing official Task 4 requirements and genuine release blockers.
+
+Do not stop just because a baseline check fails. Investigate whether the failure is pre-existing, relevant to the release, and safely fixable within Day 20.
+
+Do not overwrite or reformat large unrelated files merely to make the code look cleaner.
+
+---
+
+# 3. STEP 2 — AUDIT OFFICIAL TASK 4 REQUIREMENTS
+
+First, inspect the official Task 4 specification or assignment document available in the repository or supplied project materials.
+
+Use the official requirement wording as the source of truth. If it is unavailable, state that fact and use the following checklist as a provisional audit. Do not claim complete official compliance without access to the actual specification.
+
+Audit the following capabilities against the existing application.
+
+## Canvas and navigation
+
+- Interactive canvas for viewing and editing the tree.
+- Zoom controls and zoom behavior.
+- Pan behavior.
+- Grid display, if required.
+- Reset or fit-view behavior.
+- Usable navigation across larger graphs.
+
+## Node management
+
+- All four required node types are available.
+- Nodes display their expected colors and status information.
+- Palette items can be dragged onto the canvas.
+- New nodes receive unique identifiers.
+- Users can add a child node.
+- Users can duplicate a node.
+- Users can delete a node.
+- Users can re-parent a node where permitted.
+- Node editing and inspector fields work as specified.
+
+## Relationships and graph editing
+
+- Directional edges display the intended relationship direction.
+- Connections obey the project's relationship rules.
+- Invalid connections are rejected safely.
+- Duplicate edges are prevented.
+- A node cannot become its own parent.
+- Cycles are prevented.
+- A node cannot receive a second parent where the tree model prohibits it.
+- Editing remains usable while the graph is incomplete or invalid.
+
+## Search, layout, and overview
+
+- Search locates the intended nodes.
+- Auto Layout arranges the graph correctly.
+- MiniMap is present and functional.
+- Collapse and expand preserve the underlying graph.
+- The application remains usable after graph modifications.
+
+## Data and validation
+
+- JSON export works.
+- JSON import works.
+- Invalid JSON is rejected safely.
+- Orphan validation works according to the actual graph model.
+- Cycle validation works.
+- Validation handles collapsed descendants correctly.
+- Successful imports update the graph correctly.
+- Failed imports do not corrupt or partially replace the existing graph.
+
+For every requirement, record:
+
+- **PASS** — verified with direct evidence.
+- **FAIL** — tested and found not to satisfy the requirement.
+- **BLOCKED** — verification or completion is prevented by an external dependency or unavailable information.
+- **NOT TESTED** — no sufficient verification was performed.
+
+Also track implementation status separately:
+
+- Implemented.
+- Tested.
+- Demo-ready.
+
+These are separate claims. Code presence alone does not establish that a feature is tested or demo-ready.
+
+Fix only genuine official requirement gaps and release-blocking defects that can be addressed safely within Day 20. Do not expand the scope with optional features.
+
+---
+
+# 4. STEP 3 — PROTECT THE GRAPH MODEL AND ARCHITECTURE
+
+Preserve the existing architecture unless an actual defect requires a minimal correction.
+
+## 4.1 Separate graph data from temporary UI state
+
+The persistent graph/document state consists of nodes and edges.
+
+Transient UI state may include:
+
+- Current selection.
+- Search input and results.
+- Open dialogs and menus.
+- Hover state.
+- Dragging state.
+- Temporary clipboard state.
+- Other temporary interaction state.
+
+Ensure transient UI state does not accidentally become part of graph history or exported graph data.
+
+Do not move state between stores or redesign the architecture without a demonstrated reason.
+
+## 4.2 Centralize relationship rules
+
+The intended central relationship-rule module is:
+
+`src/lib/relationshipRules.ts`
+
+Inspect the actual module and its consumers. Where this module exists, preserve its role as the single source of truth for relationship validation.
+
+The default project-specific relationship rules are:
+
+- Root → Rule
+- Rule → Condition
+- Rule → Action
+- Condition → Action
+- Action → no children
+
+These are project-specific structural rules, **not official regulatory or legal requirements**.
+
+Ensure the same relationship rules are applied consistently wherever relevant, including:
+
+- Connecting nodes.
+- Adding children.
+- Re-parenting.
+- Duplicating or pasting subtrees.
+- JSON import.
+- Graph validation.
+
+Avoid separate, conflicting copies of relationship logic.
+
+## 4.3 Preserve graph integrity
+
+Verify that the application safely handles:
+
+- Self-links.
+- Cycles.
+- Duplicate edges.
+- Invalid source or target identifiers.
+- Invalid node-type relationships.
+- Multiple parents in a tree model.
+- Missing parents.
+- Invalid or duplicate node IDs.
+- Malformed graph data.
+
+A completed valid tree must have exactly one Root with no parent, and each non-root node must have exactly one valid parent.
+
+However, incomplete or temporarily invalid graphs must remain editable if that is the existing intended workflow. Do not force every intermediate editing state to be a completed valid tree.
+
+Validation should identify problems without silently deleting or repairing user data unless an existing, explicitly intended operation requires it.
+
+## 4.4 Unique identifiers
+
+Check that IDs remain unique after:
+
+- Creating nodes.
+- Dropping palette items onto the canvas.
+- Adding child nodes.
+- Duplicating nodes or subtrees.
+- Pasting copied subtrees.
+- Importing JSON.
+
+For duplicated or pasted subtrees, remap identifiers and edges correctly. Internal edges must connect to the corresponding newly created nodes rather than accidentally referencing the original subtree.
+
+Use the existing ID-generation approach unless it is demonstrably defective.
+
+## 4.5 Collapse and expand
+
+Collapse/expand is a visibility operation, not a deletion operation.
+
+Verify that:
+
+- Descendants remain in the underlying graph when a parent is collapsed.
+- Expanding restores the expected descendants.
+- Hidden descendants are not incorrectly treated as deleted or orphaned.
+- Validation examines the underlying graph rather than only visible nodes.
+- Export, import, undo, and redo do not lose collapsed descendants.
+
+Do not introduce a new collapse architecture if the current implementation already works.
+
+---
+
+# 5. STEP 4 — VERIFY UNDO, REDO, AND PERSISTENCE
+
+Inspect the current history implementation and preserve its intended behavior.
+
+If the project uses Zustand and Zundo, verify that history uses an appropriate partialized state containing graph data only. Do not claim Zundo or a particular implementation is present until confirmed in the repository.
+
+Expected history behavior:
+
+| Operation | Expected graph-history behavior |
+|---|---|
+| Select a node | No history entry |
+| Search or hover | No history entry |
+| Copy without changing the graph | No history entry |
+| Drag one node | One entry when the drag completes |
+| Auto Layout | One entry |
+| Paste a subtree | One entry |
+| Collapse or expand | One entry if this is the existing intended graph-editing behavior |
+| Successful JSON import | One entry |
+| Failed JSON import | No entry and no graph changes |
+
+Check undo and redo across relevant graph operations. Avoid producing one history entry for every pointer-movement event during a single drag.
+
+For persistence, verify that:
+
+- The intended graph is restored after refresh.
+- Supported settings are persisted if the current implementation requires them to be.
+- Transient interaction state is not incorrectly restored as graph data.
+- Undo/redo history is not persisted as part of the graph.
+- A restored graph starts with fresh history, unless the existing requirements explicitly specify otherwise.
+- Invalid stored data is handled safely.
+- Persistence changes do not break the initial application state.
+
+Do not introduce remote storage or a backend. The current project is a frontend prototype with local/mock state.
+
+---
+
+# 6. STEP 5 — VERIFY JSON IMPORT/EXPORT AND DATA SAFETY
+
+The intended JSON graph format is:
+
+```json
+{
+  "version": 1,
+  "nodes": [],
+  "edges": []
+}
+```
+
+Inspect the real implementation and maintain compatibility with the existing documented schema.
+
+Verify that:
+
+1. Export contains the graph data in the supported format.
+2. Export does not include temporary UI state or undo/redo history.
+3. Import validates the JSON structure and supported version.
+4. Invalid JSON produces a useful error without crashing the application.
+5. Invalid imports leave the current graph unchanged.
+6. Imported node IDs and edge endpoints are checked.
+7. Duplicate IDs and malformed relationships are handled according to the application's validation rules.
+8. Valid imports replace or update the graph as intended.
+9. Successful import participates in undo history correctly.
+10. Exporting and re-importing a valid graph preserves its meaningful graph structure.
+
+If the existing code uses Zod, inspect and preserve the actual validation pipeline. Do not add a second schema system unnecessarily.
+
+Review import handling for unsafe parsing assumptions, untrusted input, unexpected properties, and failure paths. Never use `eval` or equivalent dynamic execution to interpret imported JSON.
+
+Do not silently discard user data merely to make invalid imports pass.
+
+---
+
+# 7. STEP 6 — SAFE CODE AND DEPENDENCY CLEANUP
+
+Perform only evidence-based cleanup.
+
+Inspect for:
+
+- Unused imports.
+- Unused variables.
+- Debug logging that should not ship.
+- Temporary development files.
+- Dead code that is genuinely unused.
+- Unused dependencies.
+- Duplicate or contradictory documentation.
+- Incorrect types or avoidable type assertions.
+- Warnings that materially affect release readiness.
+
+Rules:
+
+- Do not remove code merely because it appears old.
+- Confirm whether components and utilities are actually used before deleting them.
+- Check dependency usage before removing packages.
+- Do not upgrade packages indiscriminately.
+- Do not regenerate or replace the lockfile unnecessarily.
+- Do not make broad formatting changes.
+- Do not hide lint errors by disabling rules globally.
+- Do not suppress TypeScript errors with `any`, `@ts-ignore`, or unsafe casts unless an existing, justified exception is genuinely necessary and documented.
+
+If a dependency is unused, remove it only when doing so is safe and supported by the package manager's existing workflow.
+
+Record any dependency or lockfile changes in the final report.
+
+---
+
+# 8. STEP 7 — PROPORTIONATE SECURITY AND RELEASE-INTEGRITY REVIEW
+
+Perform a focused review appropriate for a frontend release candidate. Do not turn this into a new security subsystem or a broad redesign.
+
+Inspect for:
+
+- Accidentally committed secrets, API keys, or credentials in the files you review.
+- Unsafe handling of imported JSON.
+- Dynamic code execution such as `eval`.
+- Unsafe HTML rendering or injection risks.
+- Unexpected network requests.
+- Unsafe URL handling.
+- Insecure persistence assumptions.
+- Sensitive data accidentally included in exports or logs.
+- Existing dependency-audit capabilities and relevant known vulnerabilities.
+
+Use existing tools and commands where practical.
+
+Do not install a large new security toolchain solely for Day 20. Do not claim a clean security audit if only a limited inspection was performed.
+
+If an existing dependency audit is available, run it where appropriate and report its real output. Distinguish actionable release blockers from unrelated warnings and explain unresolved high-impact issues.
+
+Do not expose secrets in the final report. If a potential secret is discovered, report its location and the required remediation without reproducing its value.
+
+---
+
+# 9. STEP 8 — UPDATE README.md
+
+Review the current README and update it to accurately describe the actual project.
+
+Use this project description exactly:
+
+**“A production-style interactive frontend prototype for visualizing and editing hierarchical compliance-rule structures.”**
+
+The README should include the following sections, where applicable.
+
+## Project overview
+
+- What the Interactive Visual Tree Editor does.
+- Who the prototype is intended for.
+- Its current scope and limitations.
+- A clear statement that it is a frontend prototype and does not provide a backend or remote database unless that has actually changed through previously authorized work.
+
+## Features
+
+Document the actual state of:
+
+- Interactive canvas.
+- Four node types.
+- Palette drag-and-drop.
+- Connections and relationship validation.
+- Node inspector and editing.
+- Add child, duplicate, delete, and re-parent operations.
+- Search.
+- Auto Layout.
+- MiniMap.
+- Collapse and expand.
+- Undo and redo.
+- JSON import/export.
+- Validation.
+- Local persistence.
+
+Do not advertise an unimplemented or unverified feature as working.
+
+## Technology stack
+
+List only the technologies and libraries confirmed in the repository.
+
+## Architecture
+
+Briefly describe the actual component structure, state management, graph rules, validation, layout, history, and persistence.
+
+## Project structure
+
+Provide a concise directory overview based on the real repository. Do not invent folders or files.
+
+## Setup and execution
+
+Include verified installation and development commands.
+
+## Quality checks
+
+Document the actual commands for tests, lint, type-checking, and production build. Use commands that exist in `package.json` or are otherwise confirmed to work.
+
+## JSON format
+
+Explain the supported JSON version and graph structure. Include a small accurate example if useful.
+
+## Validation and persistence
+
+Explain how graph validation works and what is saved locally. State any known limitations.
+
+## Keyboard shortcuts
+
+Document only shortcuts that are actually implemented and verified. Do not invent shortcuts.
+
+## Deployment
+
+Include the actual live URL only if it has been confirmed. If unavailable, mark deployment information as pending verification rather than inventing a URL.
+
+## Demo assets
+
+Add clearly labelled placeholders for the demo video and screenshots if they are not yet available. Never create fake links or imply that assets exist when they do not.
+
+## Known limitations
+
+List relevant limitations honestly, including the absence of a backend or remote database where applicable.
+
+Keep the README useful, concise, and consistent with the implementation.
+
+---
+
+# 10. STEP 9 — UPDATE ARCHITECTURE.md
+
+Create or update `ARCHITECTURE.md` using the actual codebase as the source of truth.
+
+Explain the following areas where they exist in the current project.
+
+## 10.1 Component architecture
+
+- Main application structure.
+- Canvas and node components.
+- Palette and inspector.
+- Search, MiniMap, validation, dialogs, and other relevant components.
+- How components interact with the graph state.
+
+## 10.2 State management
+
+- Actual state-management library.
+- Graph/document state.
+- Transient UI state.
+- Why the two types of state should remain separate.
+
+## 10.3 Undo and redo
+
+- Actual history implementation.
+- How graph-only history is achieved.
+- The purpose of partialization if Zundo or another equivalent mechanism is used.
+- Why selection, search, hover, and other transient UI changes should not create graph-history entries.
+
+## 10.4 Relationship rules
+
+Explain the central relationship-rule module, including:
+
+- Allowed parent-child relationships.
+- Connection checks.
+- Cycle and multiple-parent restrictions.
+- How the rules are reused by editing, import, and validation operations.
+
+Document only what the code actually does.
+
+## 10.5 Cycle detection and validation
+
+Explain the actual cycle-detection and graph-validation approach, including the difference between a temporarily incomplete graph and a completed valid tree.
+
+## 10.6 JSON pipeline and versioning
+
+Explain the actual import/export schema, validation process, version handling, and failure behavior. Mention Zod only if the project actually uses it.
+
+## 10.7 Persistence
+
+Explain what is persisted, how restoration works, and how history is initialized after restoring the graph.
+
+## 10.8 Collapse and visibility
+
+Explain how collapsing affects visibility without deleting descendants, if that is how the current implementation works.
+
+## 10.9 Layout
+
+Explain the existing Auto Layout implementation and mention Dagre only if the code actually uses it.
+
+## 10.10 Testing strategy
+
+Explain the existing test framework, major test areas, and how to run the tests.
+
+## 10.11 Architecture decisions
+
+Document the actual reasons for the project's architecture where these can be established, including:
+
+- Why the current state-management approach is used.
+- Why graph validation is separated from UI rendering, if applicable.
+- Why React Flow or the actual canvas library is used.
+- Why the current layout library is used.
+- Why graph state and transient UI state are treated separately.
+
+If the original rationale is not documented or cannot be established, label it as the current design rationale rather than claiming it was the original author's intent.
+
+**Do not claim the project uses Zustand, Zundo, React Flow, Dagre, Zod, or any other library unless repository inspection confirms it.**
+
+---
+
+# 11. STEP 10 — UPDATE CHANGELOG.md
+
+Create or update `CHANGELOG.md` to document actual Day 20 changes.
+
+Include relevant entries for:
+
+- Release-readiness fixes.
+- Official requirement gaps addressed.
+- Test or validation improvements.
+- Documentation updates.
+- Safe cleanup.
+- Deployment verification status, where appropriate.
+
+Do not list planned work as completed work.
+
+Do not claim that a defect was fixed unless the code was changed and the fix was verified appropriately.
+
+Do not fabricate a release version, release date, or version tag. Follow the project's existing changelog conventions.
+
+If no code changes were necessary in a particular area, do not invent a change merely to populate the changelog.
+
+---
+
+# 12. STEP 11 — RUN ALL QUALITY CHECKS
+
+Inspect `package.json` and the actual project configuration before selecting commands.
+
+Run the relevant checks supported by the repository:
+
+1. Full automated test suite, using the existing Vitest setup if present.
+2. Lint.
+3. TypeScript type-checking.
+4. Production build.
+5. Any existing additional verification command directly relevant to release readiness.
+
+Do not claim TypeScript checking passed merely because the production build succeeded. If the project does not expose a separate type-check command, use an appropriate existing TypeScript command or clearly explain the limitation.
+
+For every check, record:
+
+- Exact command executed.
+- Whether it completed successfully.
+- Actual test count, if reported.
+- Failed tests and relevant error summaries.
+- Warnings that remain.
+- Whether the issue was present before Day 20 or introduced by a Day 20 change, where the evidence allows that distinction.
+
+If a command fails:
+
+1. Read the real error output.
+2. Identify the cause.
+3. Fix it only if the issue is in scope and the correction is safe.
+4. Rerun the affected check.
+5. Rerun relevant regression tests.
+6. Rerun the complete required checks after the final code change.
+
+Do not report a check as passed if it was skipped, timed out, blocked, or never executed.
+
+Do not fabricate test counts or turn an unexecuted test into a successful result.
+
+A successful build does not prove that the application works correctly in a browser.
+
+---
+
+# 13. STEP 12 — VERIFY DEPLOYMENT
+
+Inspect the existing deployment configuration, such as Vercel configuration and the project's deployment settings.
+
+If an existing deployment URL is available:
+
+1. Confirm the exact URL from repository configuration, deployment metadata, or another reliable source.
+2. Check the actual deployment status if the environment allows it.
+3. Verify that the deployed application loads, where browser access is available.
+4. Perform a basic deployed smoke test where practical.
+5. Compare the deployed version with the latest verified source where the available evidence permits it.
+
+Do not invent a deployment URL or assume that a successful local build means deployment succeeded.
+
+If deployment access, credentials, network access, or browser verification is unavailable, report:
+
+- What was inspected.
+- What could not be checked.
+- Why verification was blocked.
+- What I need to do to complete verification.
+
+Do not publish a new deployment or modify production configuration without authorization.
+
+Clearly distinguish:
+
+- Local build passed.
+- Deployment exists.
+- Deployment is reachable.
+- Deployed functionality was smoke-tested.
+
+These are different claims.
+
+---
+
+# 14. STEP 13 — PERFORM THE FINAL REGRESSION SMOKE TEST
+
+Use the existing application and preserve the established workflow.
+
+The protected end-to-end smoke flow is:
+
+**Drag → Connect → Edit → Undo → Export JSON → Import JSON → Validate → Refresh**
+
+Verify the following where the application and environment allow it:
+
+### A. Drag
+
+- Drag a node from the palette to the canvas.
+- Confirm that the node appears correctly.
+- Confirm its ID is unique.
+
+### B. Connect
+
+- Create a valid directional connection.
+- Confirm the edge points in the intended direction.
+- Attempt an invalid connection if safe and verify that the graph is protected.
+
+### C. Edit
+
+- Change a supported inspector field.
+- Confirm the intended value is updated.
+
+### D. Undo and redo
+
+- Undo the edit or another supported graph operation.
+- Confirm that the graph returns to the expected state.
+- Redo where supported.
+- Verify that temporary selection or search activity does not corrupt history.
+
+### E. Export JSON
+
+- Export the graph.
+- Inspect the exported structure.
+- Confirm that it follows the supported schema and does not include transient UI state or history.
+
+### F. Import JSON
+
+- Re-import a valid exported graph.
+- Confirm that the graph is restored correctly.
+- If practical, test invalid JSON and confirm that the existing graph remains unchanged.
+
+### G. Validate
+
+- Run graph validation.
+- Confirm that a valid graph produces the expected result.
+- If practical, introduce a known invalid structure using a safe supported method and confirm that validation identifies it.
+
+### H. Refresh
+
+- Refresh the application.
+- Confirm that the expected persisted graph returns.
+- Confirm that the application remains usable.
+
+Do not skip a step silently. Record whether each step was:
+
+- Verified in the browser.
+- Verified through automated tests only.
+- Blocked.
+- Not tested.
+
+Do not claim browser verification if only unit tests were executed.
+
+---
+
+# 15. STEP 14 — PREPARE A 2–3 MINUTE DEMO SCRIPT
+
+Prepare a short, practical demonstration script based on the actual working application.
+
+Suggested sequence:
+
+1. Open the application and explain the purpose of the Interactive Visual Tree Editor.
+2. Briefly show the main layout: palette, canvas, and inspector.
+3. Drag a Rule node onto the canvas.
+4. Connect nodes using a valid relationship.
+5. Edit a node in the inspector.
+6. Search for a node.
+7. Demonstrate Auto Layout.
+8. Show the MiniMap.
+9. Demonstrate a validation error and correct it, if this is supported by the application.
+10. Export the graph to JSON.
+11. Import the exported JSON and verify the graph.
+12. Demonstrate undo and redo.
+13. Refresh the application and show persistence.
+
+Keep the sequence within approximately 2–3 minutes.
+
+The script must use real controls and actual implemented features. If a step is unavailable or unreliable, do not pretend it works. Identify the limitation and provide a verified alternative demonstration sequence.
+
+Prepare a short narration for each step. Do not create fake screenshots, fake recordings, or fake evidence.
+
+If browser interaction or recording is unavailable, provide the script and mark the live rehearsal or recording as pending.
+
+---
+
+# 16. STEP 15 — REQUIREMENT TRACEABILITY AND FINAL DIFF AUDIT
+
+Before finishing, conduct a final release audit.
+
+## 16.1 Requirement-to-evidence traceability
+
+For each official Task 4 requirement, record:
+
+- Requirement.
+- Relevant implementation file or component.
+- Verification method.
+- Actual result.
+- Remaining issue, if any.
+
+Use this to identify missing requirements and unsupported claims. Keep the traceability record proportionate; do not build a new tracking system into the application.
+
+## 16.2 Final change review
+
+Review the complete Day 20 diff and confirm:
+
+- Every changed file has a clear reason.
+- No unrelated feature was accidentally removed.
+- No working Days 1–19 functionality was broken.
+- No unnecessary dependency was introduced.
+- No tests were weakened or deleted to hide failures.
+- No temporary debugging code remains.
+- No accidental secrets or local environment files were added.
+- No generated artifacts or unrelated formatting changes clutter the repository.
+- Documentation matches the actual implementation.
+- All relevant checks were rerun after the final code changes.
+
+If existing user modifications are present, preserve them and distinguish them from Day 20 changes where possible.
+
+Do not stage or commit changes unless explicitly requested. Leave the repository in a state that I can inspect and commit manually.
+
+---
+
+# 17. IMPORTANT PROJECT DISCLAIMERS
+
+The application is a frontend prototype using local/mock state unless the existing repository proves otherwise.
+
+Do not introduce a backend, remote database, authentication service, or other new infrastructure as part of Day 20.
+
+The identifiers below are sample template identifiers:
+
+- `FINRA-2210`
+- `SEC-17a-4`
+- `DISC-09`
+
+They must be clearly labelled **“Sample Compliance Template”** where presented as mock examples.
+
+Do not imply that the application is certified, legally compliant, approved by a regulator, or providing authoritative regulatory advice.
+
+Do not describe these identifiers or the project's parent-child rules as official regulatory requirements.
+
+---
+
+# 18. FINAL RELEASE GATE
+
+At the end of Day 20, assess release readiness honestly.
+
+Use these categories:
+
+- **READY** — the required checks and available verification evidence support release readiness.
+- **READY WITH LIMITATIONS** — no known release-blocking defect remains in the verified scope, but clearly documented limitations or blocked checks remain.
+- **NOT READY** — a known release-blocking issue remains.
+- **BLOCKED** — an essential release decision cannot be made because required evidence or access is unavailable.
+
+Do not use READY merely because the code compiles.
+
+Consider:
+
+- Official Task 4 coverage.
+- Graph integrity.
+- Undo/redo behavior.
+- JSON import/export safety.
+- Regression results.
+- Lint and type-check results.
+- Production build.
+- Deployment verification.
+- Documentation accuracy.
+- Demo readiness.
+- Remaining high-impact defects.
+
+A blocked deployment check must not be reported as a successful deployment. A feature that exists but was not tested must not be described as tested.
+
+Do not conceal unresolved problems to produce a positive final status.
+
+---
+
+# 19. REQUIRED FINAL DAY 20 REPORT
+
+After making and verifying the in-scope changes, provide a clear final report using the following structure.
+
+## A. Release status
+
+- Final status: READY / READY WITH LIMITATIONS / NOT READY / BLOCKED.
+- Short explanation of the decision.
+- The most important remaining blocker or limitation, if any.
+
+## B. Official Task 4 compliance
+
+Provide a checklist or table containing:
+
+- Requirement.
+- Status.
+- Evidence or implementation location.
+- Remaining limitation, if any.
+
+Separate implementation status from testing and demo readiness.
+
+## C. Changes made
+
+List every file created, modified, or deleted, with a brief explanation of why it changed.
+
+Clearly distinguish code changes from documentation-only changes.
+
+## D. Dependency changes
+
+- Packages added or removed.
+- Lockfile changes.
+- Reason for each change.
+- State explicitly if no dependency changes were made.
+
+## E. Architecture and data integrity
+
+Summarize the actual verification of:
+
+- Relationship rules.
+- Graph integrity.
+- Unique IDs.
+- Collapse and expand.
+- Undo and redo.
+- JSON import/export.
+- Persistence.
+
+Do not claim any behavior passed unless evidence supports it.
+
+## F. Test and quality results
+
+Report the actual results of:
+
+- Automated tests and exact test count, if available.
+- Lint.
+- TypeScript checking.
+- Production build.
+- Relevant additional checks.
+
+Include failed, skipped, and blocked checks. Mention pre-existing failures separately when established.
+
+## G. Regression smoke test
+
+Report the result of each step:
+
+- Drag.
+- Connect.
+- Edit.
+- Undo/redo.
+- Export JSON.
+- Import JSON.
+- Validate.
+- Refresh.
+
+Distinguish browser testing from automated-test-only evidence.
+
+## H. Security and release-integrity review
+
+Summarize what was inspected, the tools actually run, any actionable findings, and unresolved risks. Do not claim a comprehensive audit if only a limited review was performed.
+
+## I. Documentation
+
+Confirm the actual state of:
+
+- `README.md`
+- `ARCHITECTURE.md`
+- `CHANGELOG.md`
+- Requirement traceability record, if created.
+
+## J. Deployment status
+
+Provide the verified URL if available, the deployment status, and the checks actually performed. Otherwise, explain what is blocked or unverified.
+
+## K. Demo readiness
+
+- Whether the 2–3 minute script is prepared.
+- Which demo steps were actually rehearsed.
+- Whether screenshots or video exist.
+- Any unreliable or unavailable demonstration step.
+
+## L. Known issues and remaining actions
+
+List only genuine outstanding problems and actions that I must take.
+
+Separate release blockers from non-blocking limitations.
+
+## M. Days 21–30 roadmap — PLAN ONLY
+
+Provide a brief proposed roadmap for Days 21–30 only if useful.
+
+Clearly label it as future planning. Do not execute those tasks, modify the application for them, or begin Day 21.
+
+## N. Final confirmation
+
+Confirm the actual state of the following:
+
+- Days 1–19 work preserved.
+- No unnecessary rewrite performed.
+- No new product features introduced.
+- No tests weakened or deleted to hide failures.
+- No fabricated results or URLs.
+- No destructive Git operations.
+- No Git commit created.
+- All final checks reported truthfully.
+- Day 20 is complete, or explicitly identify what remains incomplete.
+
+Only confirm an item if you have verified it or have sufficient evidence.
+
+---
+
+# 20. FINAL EXECUTION INSTRUCTION
+
+Now execute Day 20 in the existing repository.
+
+**Prioritize in this order:**
+
+1. Preserve existing working functionality.
+2. Inspect the official Task 4 requirements.
+3. Identify and fix genuine compliance gaps and release-blocking defects.
+4. Protect graph integrity, undo/redo, persistence, and JSON import/export.
+5. Complete safe cleanup and proportionate release-integrity checks.
+6. Update the documentation.
+7. Run and inspect the actual quality checks.
+8. Verify deployment where access permits.
+9. Perform the regression smoke test.
+10. Prepare the demo script.
+11. Audit the final diff.
+12. Deliver the evidence-based Day 20 report.
+
+Make only the changes necessary to achieve these objectives. If a change is risky, unrelated, or unsupported by the official requirements, leave it untouched and report the concern.
+
+**Do not start Day 21. Do not commit. Do not invent evidence. Do not claim success without verification. Preserve the work already completed and finish Day 20 as a disciplined release-readiness task.**

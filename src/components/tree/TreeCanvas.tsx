@@ -63,6 +63,7 @@ import { GraphDiagnosticsModal } from './GraphDiagnosticsModal';
 import { CheckpointsModal } from './CheckpointsModal';
 import { ValidationPanel } from './ValidationPanel';
 import { ContextMenu } from './ContextMenu';
+import { isDarkActive } from '../../lib/theme';
 
 import { CustomNode } from './CustomNode';
 
@@ -127,9 +128,16 @@ const TreeCanvasInner: React.FC = () => {
     Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(zoom) && zoom > 0;
   const currentZoom = isViewportValid ? zoom : 1;
 
+  // Settings from persistent store
+  const persistedSettings = useTreeStore((state) => state.persistedSettings);
+  const updateSettings = useTreeStore((state) => state.updateSettings);
+
+  const gridVisible = persistedSettings.gridVisible ?? true;
+  const miniMapVisible = persistedSettings.miniMapVisible ?? true;
+  const snapToGrid = persistedSettings.snapToGrid ?? false;
+  const isDark = isDarkActive(persistedSettings.theme);
+
   // Transient UI states for canvas (not persisted, not in undo history)
-  const [gridVisible, setGridVisible] = useState(true);
-  const [miniMapVisible, setMiniMapVisible] = useState(true);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [checkpointsModalOpen, setCheckpointsModalOpen] = useState(false);
@@ -576,13 +584,13 @@ const TreeCanvasInner: React.FC = () => {
 
       if (canvasAction === 'toggle-minimap') {
         event.preventDefault();
-        setMiniMapVisible((v) => !v);
+        updateSettings({ miniMapVisible: !miniMapVisible });
         return;
       }
 
       if (canvasAction === 'toggle-grid') {
         event.preventDefault();
-        setGridVisible((v) => !v);
+        updateSettings({ gridVisible: !gridVisible });
         return;
       }
 
@@ -686,7 +694,7 @@ const TreeCanvasInner: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleAutoLayout, handleFitView, handleResetView, screenToFlowPosition]);
+  }, [handleAutoLayout, handleFitView, handleResetView, screenToFlowPosition, gridVisible, miniMapVisible, updateSettings]);
 
   // Day 11 Custom Event Listeners
   useEffect(() => {
@@ -716,11 +724,16 @@ const TreeCanvasInner: React.FC = () => {
       }
     };
 
+    const handleTriggerFitView = () => {
+      fitView({ padding: 0.25, duration: 300 });
+    };
+
     window.addEventListener('tree:trigger-autolayout', handleTriggerLayout);
     window.addEventListener('tree:trigger-shortcuts', handleTriggerShortcuts);
     window.addEventListener('tree:trigger-diagnostics', handleTriggerDiagnostics);
     window.addEventListener('tree:trigger-validation', handleTriggerValidation);
     window.addEventListener('tree:focus-node', handleFocusNode);
+    window.addEventListener('tree:trigger-fitview', handleTriggerFitView);
 
     return () => {
       window.removeEventListener('tree:trigger-autolayout', handleTriggerLayout);
@@ -728,8 +741,9 @@ const TreeCanvasInner: React.FC = () => {
       window.removeEventListener('tree:trigger-diagnostics', handleTriggerDiagnostics);
       window.removeEventListener('tree:trigger-validation', handleTriggerValidation);
       window.removeEventListener('tree:focus-node', handleFocusNode);
+      window.removeEventListener('tree:trigger-fitview', handleTriggerFitView);
     };
-  }, [handleAutoLayout, setCenter]);
+  }, [handleAutoLayout, setCenter, fitView]);
 
   // HTML5 Drag-and-Drop Handlers for Node Creation (Day 4)
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -1093,6 +1107,8 @@ const TreeCanvasInner: React.FC = () => {
         selectionOnDrag={false}
         nodesDraggable={true}
         elementsSelectable={true}
+        snapToGrid={snapToGrid}
+        snapGrid={[20, 20]}
         multiSelectionKeyCode={['Control', 'Meta']}
         deleteKeyCode={null}
         defaultEdgeOptions={{
@@ -1104,7 +1120,7 @@ const TreeCanvasInner: React.FC = () => {
         {/* Toggleable Canvas Grid Background (Rendered only when viewport numbers are valid and finite) */}
         {gridVisible && isViewportValid && (
           <Background
-            color="#cbd5e1"
+            color={isDark ? "#334155" : "#cbd5e1"}
             gap={20}
             size={1}
             variant={BackgroundVariant.Dots}
@@ -1131,9 +1147,9 @@ const TreeCanvasInner: React.FC = () => {
             }}
             nodeStrokeWidth={2}
             nodeBorderRadius={4}
-            maskColor="rgba(241, 245, 249, 0.7)"
+            maskColor={isDark ? "rgba(15, 23, 42, 0.75)" : "rgba(241, 245, 249, 0.7)"}
             position="bottom-right"
-            className="!bg-white/95 !border !border-slate-200 !rounded-lg !shadow-md backdrop-blur-xs mb-3 mr-3"
+            className="!bg-white/95 dark:!bg-slate-900/95 !border !border-slate-200 dark:!border-slate-800 !rounded-lg !shadow-md backdrop-blur-xs mb-3 mr-3"
             ariaLabel="MiniMap overview of tree structure"
             zoomable
             pannable
@@ -1237,7 +1253,7 @@ const TreeCanvasInner: React.FC = () => {
         {/* Grid Toggle */}
         <button
           type="button"
-          onClick={() => setGridVisible((prev) => !prev)}
+          onClick={() => updateSettings({ gridVisible: !gridVisible })}
           className={`p-1.5 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 transition ${
             gridVisible
               ? 'text-blue-600 bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200/60'
@@ -1253,7 +1269,7 @@ const TreeCanvasInner: React.FC = () => {
         {/* MiniMap Toggle (Day 11) */}
         <button
           type="button"
-          onClick={() => setMiniMapVisible((prev) => !prev)}
+          onClick={() => updateSettings({ miniMapVisible: !miniMapVisible })}
           className={`p-1.5 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 transition ${
             miniMapVisible
               ? 'text-blue-600 bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200/60'

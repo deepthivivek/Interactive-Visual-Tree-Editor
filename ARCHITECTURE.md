@@ -474,9 +474,111 @@ The following pure-function business logic modules will reside under `src/lib/` 
 - **Corruption Distinction**: Legitimate incomplete editing trees (e.g., rule awaiting conditions) are valid and restored safely. Syntax errors, duplicate IDs, dangling edge endpoints, and prototype pollution properties are classified as corruption.
 - **Zero Data Loss Guarantee**: When corrupt data is encountered, storage is **never** silently overwritten. Store transitions to `persistenceStatus: 'recovery-required'`, and the `PersistenceRecoveryModal` offers:
   1. Restore canonical Sample Tree
-  2. Start fresh with Empty Root Tree
+  2. Start Blank Canvas (`nodes: []`, `edges: []`)
   3. Safe browser download of raw unparsed JSON payload for offline recovery
   4. Dismiss and inspect in-memory workspace
 - **Confirmed Sample Reset**: Replacing the active tree with the canonical template requires explicit modal confirmation (`ResetConfirmationModal`) to prevent accidental destruction of user progress.
 
+---
 
+## 13. Subtree Operations, Clipboard & Context Menu (Days 12 & 17)
+
+### Subtree Collapse / Expand Engine (`src/lib/visibility.ts`)
+- **Preservation Principle**: Collapsing a node hides all its downstream descendants from the React Flow canvas rendering tree without deleting them from the graph document model (`nodes` / `edges`).
+- **Algorithm**:
+  - `getVisibleNodesAndEdges(nodes, edges)` computes the set of reachable visible nodes by performing a BFS from root nodes.
+  - If any ancestor of a node has `node.data.collapsed === true`, the node and all connected descendant edges are pruned from the rendered view.
+  - Children count badges (`+N`) are calculated via descendant count traversal so users always know how many nodes are hidden beneath a collapsed parent.
+
+### Subtree Deep-Copy & ID Remapping (`src/lib/clipboard.ts`)
+- **Isolation**: Copying a node automatically captures the entire downstream subtree.
+- **Deep Regeneration**: When pasted, every copied node receives a newly generated UUID (`v4`).
+- **Edge Remapping**: Edges between nodes within the copied subtree are re-mapped to the new UUIDs, preserving the internal hierarchy while preventing edge collisions with the original subtree.
+- **Root Protection**: If a `root` node is copied and pasted into a tree that already possesses a root, the pasted apex is automatically converted to a `rule` node to preserve the single-root invariant.
+
+### Contextual Actions (`src/lib/contextMenu.ts`)
+- Context menus for both canvas pane (paste, fit view, add root/rule) and individual nodes (add child, duplicate, copy subtree, delete node, delete subtree, collapse/expand).
+- Position clamping prevents menu overflow off the edge of the viewport.
+
+---
+
+## 14. Advanced Search, Tokenization & Multi-field Highlighting (Day 13)
+
+### Multi-Field Scoring Engine (`src/lib/search.ts`)
+- **Indexed Fields**: `label`, `ruleId`, `parameters` (keys and values), `tags`, `severity`, `status`, and `notes`.
+- **Tokenization**: Queries are split into whitespace-delimited tokens. A node matches if all tokens match at least one attribute (AND logic across tokens).
+- **Match Priority Scoring**:
+  - Exact `ruleId` match: Highest score (100)
+  - `label` substring match: High score (50)
+  - `tags` match: Medium score (30)
+  - Parameter key/value or notes match: Standard score (10)
+
+### Ambient Canvas Glow & Focus Navigation
+- Nodes matching the active query receive a bright amber focus halo and SVG edge highlight.
+- Jumper controls (`Next` / `Previous`) pan the canvas viewport directly to center each match sequentially.
+
+---
+
+## 15. Transactional JSON v1 Schema, Rollback & Validation Pipeline (Day 15)
+
+### Two-Phase Transactional Import (`src/lib/json.ts`)
+- **Phase 1: Syntactic & Schema Validation**:
+  - Parsed against strict Zod schema `treeDocumentSchema` requiring `version: 1`, non-empty IDs, valid node types, and valid coordinates.
+  - Prototype pollution guards reject payloads containing `__proto__`, `constructor`, or malicious property descriptors.
+- **Phase 2: Semantic Graph Validation**:
+  - Checks for duplicate node IDs.
+  - Verifies that all edge `source` and `target` IDs exist within the node set.
+  - Validates relationship grammar and verifies that no cycles exist.
+- **Atomic Rollback**: If any check in Phase 1 or Phase 2 fails, the existing document state is left completely untouched. A detailed error list is displayed to the user with exact issue paths.
+
+---
+
+## 16. End-to-End Regression Hardening & Release Safety (Days 18–20)
+
+### Comprehensive Test Architecture
+- **22 Vitest Test Suites, 440 Tests**:
+  - `nodeTypeConfig.test.ts`: Node styles, handles, and invariants.
+  - `connectionValidation.test.ts`: Live connection grammar, single parent, cycle prevention.
+  - `reconnectionAndEdgeSafety.test.ts`: Atomic edge reconnection and rollback.
+  - `nodeOperationsDay6.test.ts`: Add child, duplication, re-parenting, deletion safety.
+  - `nodePropertiesDay7.test.ts`: Real-time inspector synchronization and validation.
+  - `day8HistoryAndUndoRedo.test.ts`: Zundo temporal history, undo/redo limits, transient filtering.
+  - `autoLayoutDay10.test.ts`: Dagre layout determinism, 500-node performance benchmark.
+  - `day11AdvancedCanvasAndDiagnostics.test.ts`: MiniMap, zoom limits, diagnostics modal.
+  - `day12SubtreeAndClipboard.test.ts`: Subtree deletion, collapse/expand, deep copy/paste.
+  - `day13Validation.test.ts`: Deep structural audit, orphan detection, severity rules.
+  - `day13Selection.test.ts`: Selection isolation, multi-select, keyboard safety.
+  - `search.test.ts`: Search tokenization, scoring, parameter matching.
+  - `day15Json.test.ts` & `day15ModalAndImport.test.ts`: JSON v1 export, Zod schema, rollback.
+  - `day16Persistence.test.ts`: LocalStorage autosave, quota bounds, corruption recovery.
+  - `day17MandatoryRegressionWorkflow.test.ts`: End-to-end user workflows.
+  - `day18AccessibilityAndWorkflow.test.ts`: Keyboard navigation, ARIA attributes, screen reader safety.
+  - `day19PerformanceAndEdgeCases.test.ts`: Stress testing, extreme aspect ratios, edge disconnects.
+  - `day20ReleaseReadiness.test.ts`: Task 4 compliance audit and mock template disclaimers.
+
+---
+
+## 17. Summary of Architectural Decision Records (ADRs)
+
+1. **ADR-01: Pure Functional Graph Library (`src/lib/`)**: All graph algorithms are stateless pure functions with no React hooks, allowing 100% unit test coverage in Vitest without DOM dependencies.
+2. **ADR-02: Strict State Separation**: Graph document data (`nodes`, `edges`) is strictly decoupled from transient UI state (`selectedNodeId`, `searchQuery`, `inspectorOpen`). Only document mutations generate history or trigger autosave.
+3. **ADR-03: Centralized Relationship Policy (`relationshipRules.ts`)**: Single source of truth for allowed connections between node types. UI handles, drag drops, reconnection, and diagnostics all reference this single file.
+4. **ADR-04: Non-Destructive Storage Recovery**: If localStorage data is corrupted or invalid, the editor never wipes the user's data; instead, it enters a recovery mode offering safe offline download of the raw payload.
+5. **ADR-05: Zod Schema Versioning**: JSON documents declare `version: 1`. Schemas enforce strict types, finite numbers, and sanitized keys, guaranteeing forward compatibility and rollback on invalid files.
+
+---
+
+## 18. Days 21–30 Quality, Verification & Submission Roadmap (Plan-Only)
+
+In strict accordance with project scope constraints, Days 21–30 introduce no new product features or enterprise backend additions. Instead, this period focuses purely on verification, hardening, presentation, and submission readiness:
+
+1. **Day 21 (QA & Defect Hardening)**: Target edge cases uncovered during integration and regression sweeps.
+2. **Day 22 (Mentor & Peer Feedback)**: Review interaction ergonomics, tooltip clarity, and inspector layout feedback.
+3. **Day 23 (Accessibility & Responsiveness)**: Audit against WCAG 2.1 AA (focus outlines, keyboard navigation, high contrast, mobile viewports).
+4. **Day 24 (User Acceptance Testing)**: Formal verification against every clause of the original Task 4 specification.
+5. **Day 25 (Documentation & Visual Assets)**: High-resolution architecture diagrams, feature screenshots, and API/JSON specs.
+6. **Day 26 (Demo Production)**: Script and record concise 2–3 minute video presentation covering key workflows.
+7. **Day 27 (Cross-Browser Testing)**: Verify layout, SVG handles, and local storage across Chrome, Firefox, Safari, and Edge.
+8. **Day 28 (Deployment & Repository Health)**: Confirm clean production builds and repository hygiene.
+9. **Day 29 (Submission Packaging)**: Final bundle assembly, README verification, and audit trail checks.
+10. **Day 30 (Submission Buffer)**: Final sanity check before submission deadline.

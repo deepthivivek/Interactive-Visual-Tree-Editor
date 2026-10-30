@@ -292,4 +292,43 @@ export interface TreeStoreState {
   recoverWithSampleTree: () => boolean;
   recoverWithEmptyTree: () => boolean;
   dismissRecoveryModal: () => void;
+
+  // Day 21 Templates & Settings State & Actions
+  isTemplatesModalOpen: boolean;
+  isSettingsModalOpen: boolean;
+  openTemplatesModal: () => void;
+  closeTemplatesModal: () => void;
+  openSettingsModal: () => void;
+  closeSettingsModal: () => void;
+  updateSettings: (newSettings: Partial<import('../lib/persistence').PersistedSettings>) => void;
+  resetSettingsToDefault: () => void;
+  applyTemplate: (templateId: string) => { ok: boolean; message: string; templateTitle?: string };
+
+  // Day 22 Policy Comparison State & Actions
+  isComparisonModalOpen: boolean;
+  openComparisonModal: () => void;
+  closeComparisonModal: () => void;
+
+  // Day 26 Roles, Permissions & Governance State & Actions
+  isApprovalsModalOpen: boolean;
+  openApprovalsModal: () => void;
+  closeApprovalsModal: () => void;
+  activeRole: import('../lib/rolesAndApprovals').UserRole;
+  setActiveRole: (role: import('../lib/rolesAndApprovals').UserRole) => void;
+  approvalWorkflow: import('../lib/rolesAndApprovals').PolicyApprovalWorkflow;
+  setApprovalState: (
+    state: import('../lib/rolesAndApprovals').ApprovalState,
+    actorRole: import('../lib/rolesAndApprovals').UserRole,
+    comments: string,
+    actorId?: string,
+    actorName?: string
+  ) => void;
+
+  // Day 30 Enterprise SSO State & Actions
+  isSsoModalOpen: boolean;
+  openSsoModal: () => void;
+  closeSsoModal: () => void;
+  ssoUser: import('../lib/sso').SsoUserProfile | null;
+  setSsoUser: (user: import('../lib/sso').SsoUserProfile | null) => void;
 }
+

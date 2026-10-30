@@ -1,34 +1,36 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Download, Copy, Check, AlertTriangle, Shield, X } from 'lucide-react';
+import { Download, Copy, Check, AlertTriangle, Shield, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { useTreeStore } from '../../store/treeStore';
 import { exportGraph } from '../../lib/json';
 import { evaluateExportGuard } from '../../lib/exportGuard';
 import { handleModalTabKey } from '../../lib/modalFocus';
+import { generateGraphSvg, generatePrintableHtmlReport } from '../../lib/exportArtifacts';
 
 interface ExportJsonModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type ExportTab = 'json' | 'svg' | 'html';
+
 export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClose }) => {
   const nodes = useTreeStore((state) => state.nodes);
   const edges = useTreeStore((state) => state.edges);
   const setStatusFeedback = useTreeStore((state) => state.setStatusFeedback);
 
+  const [activeTab, setActiveTab] = useState<ExportTab>('json');
   const [copiedExport, setCopiedExport] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
-  // Focus trap, initial focus, focus restoration, and Escape listener
   useEffect(() => {
     if (!isOpen) return;
 
     previousActiveElementRef.current = document.activeElement as HTMLElement | null;
 
     const timer = setTimeout(() => {
-      // Focus modal container or first button
       const firstBtn = modalRef.current?.querySelector<HTMLElement>('button:not([disabled])');
       firstBtn?.focus();
     }, 10);
@@ -53,13 +55,21 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
     };
   }, [isOpen, onClose]);
 
-  // Memoized export JSON string
   const exportJsonStr = useMemo(() => {
     if (!isOpen) return '';
     return exportGraph(nodes, edges);
   }, [isOpen, nodes, edges]);
 
-  // Export guard evaluation
+  const exportSvgStr = useMemo(() => {
+    if (!isOpen) return '';
+    return generateGraphSvg(nodes, edges);
+  }, [isOpen, nodes, edges]);
+
+  const exportHtmlStr = useMemo(() => {
+    if (!isOpen) return '';
+    return generatePrintableHtmlReport(nodes, edges);
+  }, [isOpen, nodes, edges]);
+
   const exportGuard = useMemo(() => evaluateExportGuard(nodes, edges), [nodes, edges]);
 
   if (!isOpen) return null;
@@ -69,8 +79,9 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
       setStatusFeedback(exportGuard.reason ?? 'Export blocked by export guard.');
       return;
     }
+    const content = activeTab === 'json' ? exportJsonStr : activeTab === 'svg' ? exportSvgStr : exportHtmlStr;
     try {
-      await navigator.clipboard.writeText(exportJsonStr);
+      await navigator.clipboard.writeText(content);
       setCopiedExport(true);
       setTimeout(() => setCopiedExport(false), 2500);
     } catch {
@@ -83,16 +94,31 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
       setStatusFeedback(exportGuard.reason ?? 'Export blocked by export guard.');
       return;
     }
-    const blob = new Blob([exportJsonStr], { type: 'application/json' });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    let mime = 'application/json';
+    let ext = 'json';
+    let content = exportJsonStr;
+
+    if (activeTab === 'svg') {
+      mime = 'image/svg+xml';
+      ext = 'svg';
+      content = exportSvgStr;
+    } else if (activeTab === 'html') {
+      mime = 'text/html';
+      ext = 'html';
+      content = exportHtmlStr;
+    }
+
+    const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `compliance-tree-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `compliance-tree-${dateStr}.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setStatusFeedback('Exported compliance tree JSON successfully.');
+    setStatusFeedback(`Exported compliance tree ${ext.toUpperCase()} successfully.`);
     onClose();
   };
 
@@ -118,10 +144,10 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
             </div>
             <div>
               <h2 id="export-modal-title" className="text-base font-semibold text-slate-900 tracking-tight">
-                Export Compliance Tree JSON
+                Export Compliance Tree Artifacts
               </h2>
               <p id="export-modal-desc" className="text-xs text-slate-500">
-                Canonical v1 schema export with structural validation & export guard protection
+                Export canonical JSON, standalone SVG diagram, or printable HTML report.
               </p>
             </div>
           </div>
@@ -131,6 +157,37 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
             aria-label="Close export dialog"
           >
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Format Selector Tabs */}
+        <div className="px-6 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('json')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+              activeTab === 'json' ? 'bg-white text-blue-700 shadow-2xs border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Canonical JSON
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('svg')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+              activeTab === 'svg' ? 'bg-white text-blue-700 shadow-2xs border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            SVG Vector Diagram
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('html')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+              activeTab === 'html' ? 'bg-white text-blue-700 shadow-2xs border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Printable HTML Report
           </button>
         </div>
 
@@ -149,10 +206,14 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-900">
-                Canonical v1 JSON Document
+                {activeTab === 'json' ? 'v1 JSON Schema Document' : activeTab === 'svg' ? 'Scalable Vector Graphics (SVG)' : 'Printable Compliance Audit Report'}
               </h3>
               <p className="text-xs text-slate-500">
-                Excludes UI runtime properties (selected, dragging, measured) and formats deterministically.
+                {activeTab === 'json'
+                  ? 'Excludes UI runtime properties and formats deterministically.'
+                  : activeTab === 'svg'
+                  ? 'Standalone vector diagram rendering all nodes, relationship connectors, and badges.'
+                  : 'Complete hierarchical inventory and validation score structured for printing or PDF export.'}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -164,11 +225,11 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
                     ? 'text-slate-700 bg-white border-slate-200 hover:bg-slate-100 cursor-pointer'
                     : 'text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed opacity-60'
                 }`}
-                title={exportGuard.allowed ? 'Copy JSON to clipboard' : exportGuard.reason}
-                aria-label="Copy JSON to clipboard"
+                title={exportGuard.allowed ? 'Copy content to clipboard' : exportGuard.reason}
+                aria-label="Copy to clipboard"
               >
                 {copiedExport ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-                <span>{copiedExport ? 'Copied!' : 'Copy JSON'}</span>
+                <span>{copiedExport ? 'Copied!' : 'Copy Code'}</span>
               </button>
               <button
                 disabled={!exportGuard.allowed}
@@ -178,11 +239,11 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
                     ? 'text-white bg-blue-600 border-blue-600 hover:bg-blue-700 cursor-pointer'
                     : 'text-slate-400 bg-slate-200 border-slate-200 cursor-not-allowed opacity-60'
                 }`}
-                title={exportGuard.allowed ? 'Download JSON document' : exportGuard.reason}
-                aria-label="Download JSON file"
+                title={exportGuard.allowed ? 'Download file' : exportGuard.reason}
+                aria-label="Download file"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Download File</span>
+                <span>Download {activeTab.toUpperCase()}</span>
               </button>
             </div>
           </div>
@@ -190,8 +251,8 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
           <div className="relative">
             <textarea
               readOnly
-              value={exportJsonStr}
-              aria-label="Serialized JSON Document"
+              value={activeTab === 'json' ? exportJsonStr : activeTab === 'svg' ? exportSvgStr : exportHtmlStr}
+              aria-label="Serialized Export Output"
               className="w-full h-80 p-4 font-mono text-xs bg-slate-900 text-slate-100 rounded-xl border border-slate-800 focus:outline-hidden resize-none shadow-inner"
             />
           </div>
@@ -199,9 +260,9 @@ export const ExportJsonModal: React.FC<ExportJsonModalProps> = ({ isOpen, onClos
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
             <Shield className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div className="text-xs text-blue-900 space-y-1">
-              <p className="font-semibold">Export Compliance Guarantee</p>
+              <p className="font-semibold">Enterprise Export Guarantee</p>
               <p>
-                The generated JSON document conforms strictly to the Day 15 schema specification. All node positions, types, parameters, tags, and directed edges are fully preserved for lossless interchange.
+                All exported artifacts are generated deterministically from the current verified graph state, ensuring audit readiness and lossless data preservation.
               </p>
             </div>
           </div>
